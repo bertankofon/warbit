@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { createToken } from "@/lib/metal-api"
-import { Loader2 } from "lucide-react"
+import { createUserToken } from "@/lib/metal-utils"
+import { Loader2, AlertCircle } from 'lucide-react'
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
 export default function SignUp() {
   const router = useRouter()
@@ -21,56 +22,78 @@ export default function SignUp() {
   const [password, setPassword] = useState("")
   const [warriorName, setWarriorName] = useState("")
   const [tokenSymbol, setTokenSymbol] = useState("")
+  const [walletAddress, setWalletAddress] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [walletError, setWalletError] = useState<string | null>(null)
   const [step, setStep] = useState(1)
+
+  // Validate Ethereum wallet address
+  const validateWalletAddress = (address: string): boolean => {
+    // Check if it's a valid Ethereum address format (0x followed by 40 hex characters)
+    const ethAddressRegex = /^0x[a-fA-F0-9]{40}$/;
+    return ethAddressRegex.test(address);
+  };
+
+  const handleWalletAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const address = e.target.value;
+    setWalletAddress(address);
+    
+    if (address && !validateWalletAddress(address)) {
+      setWalletError("Please enter a valid Ethereum wallet address (0x followed by 40 hex characters)");
+    } else {
+      setWalletError(null);
+    }
+  };
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError(null)
 
+    // Validate wallet address before proceeding
+    if (!validateWalletAddress(walletAddress)) {
+      setError("Please enter a valid wallet address");
+      setLoading(false);
+      return;
+    }
+
     try {
-      console.log("Creating token for warrior:", warriorName, "with symbol:", tokenSymbol)
+      console.log('Creating token for warrior:', warriorName, 'with symbol:', tokenSymbol);
+      console.log('Using merchant wallet address:', walletAddress);
+      
+      // Create token using our utility function
+      const jobId = await createUserToken(
+        `${warriorName} Token`,
+        tokenSymbol.toUpperCase(),
+        walletAddress
+      );
 
-      // Create token using Metal API
-      const tokenResponse = await createToken({
-        name: `${warriorName} Token`,
-        symbol: tokenSymbol.toUpperCase(),
-        canDistribute: true,
-        canLP: true,
-      })
-
-      console.log("Token creation response:", tokenResponse)
-
-      if (!tokenResponse.jobId) {
-        throw new Error("Failed to create token: No job ID returned")
-      }
-
-      // Sign up user
+      // Sign up user with wallet address in metadata
       const { error: signUpError, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
             warrior_name: warriorName,
-            token_job_id: tokenResponse.jobId,
+            token_job_id: jobId,
             token_symbol: tokenSymbol.toUpperCase(),
+            wallet_address: walletAddress, // Store wallet address in user metadata
           },
-        },
-      })
+        }
+      });
 
-      if (signUpError) throw signUpError
+      if (signUpError) throw signUpError;
 
-      console.log("User signed up successfully:", data)
+      console.log('User signed up successfully:', data);
 
       // Redirect to token status page
-      router.push(`/token-status?jobId=${tokenResponse.jobId}`)
+      router.push(`/token-status?jobId=${jobId}`);
     } catch (error) {
-      console.error("Error during signup:", error)
-      setError(error instanceof Error ? error.message : "An error occurred during signup")
+      console.error("Error during signup:", error);
+      setError(error instanceof Error ? error.message : "An error occurred during signup");
     } finally {
-      setLoading(false)
+      setLoading(false);
     }
   }
 
@@ -128,10 +151,29 @@ export default function SignUp() {
                   minLength={2}
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="walletAddress" className="text-white">
+                  Wallet Address (for token allocation)
+                </Label>
+                <Input
+                  id="walletAddress"
+                  placeholder="0x..."
+                  value={walletAddress}
+                  onChange={handleWalletAddressChange}
+                  className="bg-gray-800 border-gray-700 text-white font-mono text-sm"
+                  required
+                />
+                {walletError && (
+                  <Alert variant="destructive" className="bg-red-900/30 border-red-500 text-red-400 mt-2">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{walletError}</AlertDescription>
+                  </Alert>
+                )}
+              </div>
               <Button
                 onClick={() => setStep(2)}
                 className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold"
-                disabled={!warriorName || tokenSymbol.length < 2}
+                disabled={!warriorName || tokenSymbol.length < 2 || !validateWalletAddress(walletAddress)}
               >
                 Next
               </Button>
@@ -165,7 +207,12 @@ export default function SignUp() {
                     required
                   />
                 </div>
-                {error && <div className="text-red-500 text-sm">{error}</div>}
+                {error && (
+                  <Alert variant="destructive" className="bg-red-900/30 border-red-500 text-red-400">
+                    <AlertCircle className="h-4 w-4" />
+                    <AlertDescription>{error}</AlertDescription>
+                  </Alert>
+                )}
                 <div className="flex gap-2">
                   <Button
                     type="button"

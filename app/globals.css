@@ -46,3 +46,174 @@ img {
   image-rendering: pixelated;
 }
 
+/* Battle animations */
+@keyframes damage {
+  0% {
+    transform: translateY(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-20px);
+    opacity: 0;
+  }
+}
+
+@keyframes attack {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(20px);
+  }
+  50% {
+    transform: translateX(0);
+  }
+  75% {
+    transform: translateX(10px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes defend {
+  0% {
+    transform: scale(1);
+  }
+  50% {
+    transform: scale(1.2);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes special {
+  0% {
+    transform: translateX(0) rotate(0deg);
+  }
+  25% {
+    transform: translateX(15px) rotate(5deg);
+  }
+  50% {
+    transform: translateX(-10px) rotate(-5deg);
+  }
+  75% {
+    transform: translateX(5px) rotate(2deg);
+  }
+  100% {
+    transform: translateX(0) rotate(0deg);
+  }
+}
+
+@keyframes critical {
+  0% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+  25% {
+    transform: scale(1.3);
+    filter: brightness(1.5);
+  }
+  50% {
+    transform: scale(1.1);
+    filter: brightness(1.3);
+  }
+  75% {
+    transform: scale(1.2);
+    filter: brightness(1.4);
+  }
+  100% {
+    transform: scale(1);
+    filter: brightness(1);
+  }
+}
+
+@keyframes heal {
+  0% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+  50% {
+    transform: translateY(-10px);
+    filter: brightness(1.5);
+  }
+  100% {
+    transform: translateY(0);
+    filter: brightness(1);
+  }
+}
+
+@keyframes miss {
+  0% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-5px);
+  }
+  50% {
+    transform: translateX(5px);
+  }
+  75% {
+    transform: translateX(-3px);
+  }
+  100% {
+    transform: translateX(0);
+  }
+}
+
+@keyframes ultimate {
+  0% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1);
+  }
+  25% {
+    transform: scale(1.4) rotate(-5deg);
+    filter: brightness(1.7);
+  }
+  50% {
+    transform: scale(1.2) rotate(5deg);
+    filter: brightness(1.5);
+  }
+  75% {
+    transform: scale(1.3) rotate(-3deg);
+    filter: brightness(1.6);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+    filter: brightness(1);
+  }
+}
+
+.animate-damage {
+  animation: damage 1s ease-out forwards;
+}
+
+.animate-attack {
+  animation: attack 0.5s ease-in-out;
+}
+
+.animate-defend {
+  animation: defend 0.5s ease-in-out;
+}
+
+.animate-special {
+  animation: special 0.6s ease-in-out;
+}
+
+.animate-critical {
+  animation: critical 0.7s ease-in-out;
+}
+
+.animate-heal {
+  animation: heal 0.6s ease-in-out;
+}
+
+.animate-miss {
+  animation: miss 0.4s ease-in-out;
+}
+
+.animate-ultimate {
+  animation: ultimate 0.8s ease-in-out;
+}
+

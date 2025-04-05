@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Progress } from "@/components/ui/progress"
-import { checkTokenStatus } from "@/lib/metal-api"
+import { checkUserTokenStatus } from "@/lib/metal-utils"
 import { Loader2 } from "lucide-react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { checkDatabaseSetup } from "@/lib/database-setup"
@@ -32,62 +32,77 @@ export default function TokenStatus() {
     const checkStatus = async () => {
       try {
         console.log("Checking token status for jobId:", jobId)
-        const response = await checkTokenStatus(jobId)
-        console.log("Token status response:", response)
+        const tokenStatus = await checkUserTokenStatus(jobId)
 
-        if (response.status === "success") {
-          setStatus("success")
-          setTokenData(response.data)
-          setProgress(100)
+        if (tokenStatus.isComplete) {
+          if (tokenStatus.isSuccess && tokenStatus.tokenData) {
+            setStatus("success")
+            setTokenData(tokenStatus.tokenData)
+            setProgress(100)
 
-          // Update user metadata with token address
-          const {
-            data: { session },
-          } = await supabase.auth.getSession()
-          if (session) {
-            await supabase.auth.updateUser({
-              data: {
-                token_address: response.data.address,
-              },
-            })
+            // Update user metadata with token address
+            const {
+              data: { session },
+            } = await supabase.auth.getSession()
+            if (session) {
+              await supabase.auth.updateUser({
+                data: {
+                  token_address: tokenStatus.tokenData.address,
+                },
+              })
 
-            // Check if we can access the warriors table
-            const dbStatus = await checkDatabaseSetup()
+              // Check if we can access the warriors table
+              const dbStatus = await checkDatabaseSetup()
 
-            if (!dbStatus.success) {
-              setIsPreviewMode(dbStatus.isPreviewMode)
-              setPreviewMessage(dbStatus.error)
-              console.log("Database status:", dbStatus)
-              return
-            }
+              if (!dbStatus.success) {
+                setIsPreviewMode(dbStatus.isPreviewMode)
+                setPreviewMessage(dbStatus.error)
+                console.log("Database status:", dbStatus)
+                return
+              }
 
-            // Only try to create warrior record if we're not in preview mode
-            if (!dbStatus.isPreviewMode) {
-              try {
-                const { error: warriorError } = await supabase.from("warriors").insert({
-                  user_id: session.user.id,
-                  name: session.user.user_metadata.warrior_name,
-                  token_symbol: session.user.user_metadata.token_symbol,
-                  token_address: response.data.address,
-                  level: 1,
-                  wins: 0,
-                  losses: 0,
-                  token_balance: response.data.startingAppSupply,
-                  token_value: "0.00",
-                })
+              // Only try to create warrior record if we're not in preview mode
+              if (!dbStatus.isPreviewMode) {
+                try {
+                  // First check if warrior already exists
+                  const { data: existingWarrior } = await supabase
+                    .from("warriors")
+                    .select("id")
+                    .eq("user_id", session.user.id)
+                    .single()
 
-                if (warriorError) {
-                  console.error("Error creating warrior record:", warriorError)
+                  if (!existingWarrior) {
+                    // Create new warrior record
+                    const { error: warriorError } = await supabase.from("warriors").insert({
+                      user_id: session.user.id,
+                      name: session.user.user_metadata.warrior_name,
+                      token_symbol: session.user.user_metadata.token_symbol,
+                      token_address: tokenStatus.tokenData.address,
+                      level: 1,
+                      wins: 0,
+                      losses: 0,
+                      token_balance: tokenStatus.tokenData.startingAppSupply,
+                      token_value: "0.00",
+                    })
+
+                    if (warriorError) {
+                      console.error("Error creating warrior record:", warriorError)
+                    } else {
+                      console.log("Warrior record created successfully")
+                    }
+                  } else {
+                    console.log("Warrior record already exists, skipping creation")
+                  }
+                } catch (error) {
+                  console.error("Error creating warrior record:", error)
                 }
-              } catch (error) {
-                console.error("Error creating warrior record:", error)
               }
             }
+          } else {
+            setStatus("error")
+            setError(tokenStatus.error || "An error occurred while creating your token")
+            setProgress(100)
           }
-        } else if (response.status === "error") {
-          setStatus("error")
-          setError(response.message || "An error occurred while creating your token")
-          setProgress(100)
         } else {
           // Still pending
           setProgress((prev) => Math.min(prev + 5, 95)) // Increment progress but cap at 95% until complete
@@ -147,8 +162,11 @@ export default function TokenStatus() {
                 <div className="text-gray-400">Symbol:</div>
                 <div className="text-white font-mono">{tokenData.symbol}</div>
 
-                <div className="text-gray-400">Address:</div>
+                <div className="text-gray-400">Token Address:</div>
                 <div className="text-white font-mono truncate">{tokenData.address}</div>
+
+                <div className="text-gray-400">Merchant Address:</div>
+                <div className="text-white font-mono truncate">{tokenData.merchantAddress}</div>
 
                 <div className="text-gray-400">Total Supply:</div>
                 <div className="text-white font-mono">{tokenData.totalSupply?.toLocaleString()}</div>
