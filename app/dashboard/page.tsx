@@ -27,120 +27,129 @@ export default function Dashboard() {
 
   useEffect(() => {
     const checkUser = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
 
-      if (!session) {
-        router.push("/login")
-        return
-      }
-
-      setUser(session.user)
-      console.log("User session:", session.user)
-
-      // Check if we can access the warriors table
-      const dbStatus = await checkDatabaseSetup()
-
-      if (!dbStatus.success) {
-        setIsPreviewMode(dbStatus.isPreviewMode)
-        setPreviewMessage(dbStatus.error)
-        console.log("Database status:", dbStatus)
-
-        // Create a mock warrior for preview mode
-        const mockWarrior = {
-          id: "preview-id",
-          user_id: session.user.id,
-          name: session.user.user_metadata?.warrior_name || "Preview Warrior",
-          token_symbol: session.user.user_metadata?.token_symbol || "PREV",
-          token_address: session.user.user_metadata?.token_address || "0xPreviewModeAddress",
-          level: 1,
-          wins: 0,
-          losses: 0,
-          token_balance: 1000000,
-          token_value: "0.00",
+        if (!session) {
+          console.log("No session found, redirecting to login")
+          router.push("/login")
+          return
         }
 
-        setMyWarrior(mockWarrior)
+        console.log("User session found:", session.user)
+        setUser(session.user)
 
-        // Create mock opponents for preview mode
-        setWarriors([
-          {
-            id: "preview-opponent-1",
-            user_id: "preview-user-1",
-            name: "Pixel Crusher",
-            token_symbol: "PIXL",
-            token_address: "0xPreviewOpponent1Address",
-            level: 3,
-            wins: 5,
-            losses: 2,
-          },
-          {
-            id: "preview-opponent-2",
-            user_id: "preview-user-2",
-            name: "Byte Brawler",
-            token_symbol: "BYTE",
-            token_address: "0xPreviewOpponent2Address",
-            level: 2,
-            wins: 3,
-            losses: 3,
-          },
-        ])
+        // Check if we can access the warriors table
+        const dbStatus = await checkDatabaseSetup()
 
-        setLoading(false)
-        return
-      }
+        if (!dbStatus.success) {
+          setIsPreviewMode(dbStatus.isPreviewMode)
+          setPreviewMessage(dbStatus.error)
+          console.log("Database status:", dbStatus)
 
-      try {
-        // Fetch user's warrior data
-        const { data: warriorData, error: warriorError } = await supabase
-          .from("warriors")
-          .select("*")
-          .eq("user_id", session.user.id)
-          .single()
+          // Create a mock warrior for preview mode
+          const mockWarrior = {
+            id: "preview-id",
+            user_id: session.user.id,
+            name: session.user.user_metadata?.warrior_name || "Preview Warrior",
+            token_symbol: session.user.user_metadata?.token_symbol || "PREV",
+            token_address: session.user.user_metadata?.token_address || "0xPreviewModeAddress",
+            level: 1,
+            wins: 0,
+            losses: 0,
+            token_balance: 1000000,
+            token_value: "0.00",
+            element_type: session.user.user_metadata?.element_type || "fire",
+          }
 
-        if (warriorError) {
-          if (warriorError.code !== "PGRST116") {
-            // PGRST116 is "no rows returned" error
-            console.error("Error fetching warrior:", warriorError)
-          } else {
-            // If no warrior found, check if we're in token creation process
-            if (session.user.user_metadata?.token_job_id) {
-              // User has started token creation, redirect to token status
-              router.push(`/token-status?jobId=${session.user.user_metadata.token_job_id}`)
-              return
+          setMyWarrior(mockWarrior)
+
+          // Create mock opponents for preview mode
+          setWarriors([
+            {
+              id: "preview-opponent-1",
+              user_id: "preview-user-1",
+              name: "Pixel Crusher",
+              token_symbol: "PIXL",
+              token_address: "0xPreviewOpponent1Address",
+              level: 3,
+              wins: 5,
+              losses: 2,
+              element_type: "water",
+            },
+            {
+              id: "preview-opponent-2",
+              user_id: "preview-user-2",
+              name: "Byte Brawler",
+              token_symbol: "BYTE",
+              token_address: "0xPreviewOpponent2Address",
+              level: 2,
+              wins: 3,
+              losses: 3,
+              element_type: "earth",
+            },
+          ])
+
+          setLoading(false)
+          return
+        }
+
+        try {
+          // Fetch user's warrior data
+          const { data: warriorData, error: warriorError } = await supabase
+            .from("warriors")
+            .select("*")
+            .eq("user_id", session.user.id)
+            .single()
+
+          if (warriorError) {
+            if (warriorError.code !== "PGRST116") {
+              // PGRST116 is "no rows returned" error
+              console.error("Error fetching warrior:", warriorError)
             } else {
-              // No token creation in progress, redirect to create one
-              console.log("No warrior found for user, redirecting to signup")
-              router.push("/signup")
-              return
+              // If no warrior found, check if we're in token creation process
+              if (session.user.user_metadata?.token_job_id) {
+                // User has started token creation, redirect to token status
+                router.push(`/token-status?jobId=${session.user.user_metadata.token_job_id}`)
+                return
+              } else {
+                // No token creation in progress, redirect to create one
+                console.log("No warrior found for user, redirecting to signup")
+                router.push("/signup")
+                return
+              }
             }
           }
+
+          if (warriorData) {
+            console.log("Warrior data found:", warriorData)
+            setMyWarrior(warriorData)
+          }
+
+          // Fetch all warriors from the database
+          await fetchAllWarriors(session.user.id)
+
+          // Check for battle proposals
+          const { data: proposals, error: proposalsError } = await supabase
+            .from("battle_proposals")
+            .select("*")
+            .eq("opponent_id", session.user.id)
+            .eq("status", "pending")
+
+          if (!proposalsError) {
+            setProposalCount(proposals?.length || 0)
+          }
+        } catch (error) {
+          console.error("Error in dashboard:", error)
         }
 
-        if (warriorData) {
-          console.log("Warrior data found:", warriorData)
-          setMyWarrior(warriorData)
-        }
-
-        // Fetch all warriors from the database
-        await fetchAllWarriors(session.user.id)
-
-        // Check for battle proposals
-        const { data: proposals, error: proposalsError } = await supabase
-          .from("battle_proposals")
-          .select("*")
-          .eq("opponent_id", session.user.id)
-          .eq("status", "pending")
-
-        if (!proposalsError) {
-          setProposalCount(proposals?.length || 0)
-        }
+        setLoading(false)
       } catch (error) {
-        console.error("Error in dashboard:", error)
+        console.error("Session check error:", error)
+        router.push("/login")
       }
-
-      setLoading(false)
     }
 
     checkUser()

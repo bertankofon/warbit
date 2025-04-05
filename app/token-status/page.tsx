@@ -72,14 +72,17 @@ export default function TokenStatus() {
                     .single()
 
                   if (!existingWarrior) {
+                    // Get the element type from user metadata
+                    const elementType = session.user.user_metadata.element_type || "fire"
+
                     try {
-                      // First try to create warrior record with element_type
+                      // Create warrior record with element_type
                       const { error: warriorError } = await supabase.from("warriors").insert({
                         user_id: session.user.id,
                         name: session.user.user_metadata.warrior_name,
                         token_symbol: session.user.user_metadata.token_symbol,
                         token_address: tokenStatus.tokenData.address,
-                        element_type: session.user.user_metadata.element_type || "fire",
+                        element_type: elementType,
                         level: 1,
                         wins: 0,
                         losses: 0,
@@ -116,7 +119,7 @@ export default function TokenStatus() {
                           console.error("Error creating warrior record:", warriorError)
                         }
                       } else {
-                        console.log("Warrior record created successfully")
+                        console.log("Warrior record created successfully with element_type:", elementType)
                       }
                     } catch (error) {
                       console.error("Error creating warrior record:", error)

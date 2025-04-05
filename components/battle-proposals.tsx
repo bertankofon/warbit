@@ -5,6 +5,8 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Loader2, Sword, Shield, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import BattleGameModal from "@/components/battle-game-modal"
+import ElementalIcon from "./elemental-icon"
+import type { ElementType } from "@/components/elemental-warrior-selector"
 
 interface BattleProposalsProps {
   userId: string
@@ -159,21 +161,7 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
 
       setActiveBattle(completeBattle)
       setShowBattleGame(true)
-      console.log("Opening battle game modal:", activeBattle)
-
-      // Remove from proposals list
-      setProposals(proposals.filter((p) => p.id !== proposalId))
-
-      // Add this debug code
-      if (completeBattle) {
-        console.log("Battle created:", completeBattle)
-
-        // If the modal doesn't open automatically, we can try to force it
-        setTimeout(() => {
-          console.log("Forcing battle game modal to open")
-          setShowBattleGame(true)
-        }, 500)
-      }
+      console.log("Opening battle game modal:", completeBattle)
 
       // Remove from proposals list
       setProposals(proposals.filter((p) => p.id !== proposalId))
@@ -234,10 +222,16 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
 
             <div className="flex justify-between items-center mb-4">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
-                  <span className="pixel-font">
-                    {proposal.challenger?.user_metadata?.warrior_name?.charAt(0) || "?"}
-                  </span>
+                <div className="mb-1">
+                  {proposal.challenger_warrior.element_type ? (
+                    <ElementalIcon elementType={proposal.challenger_warrior.element_type as ElementType} size="sm" />
+                  ) : (
+                    <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
+                      <span className="pixel-font">
+                        {proposal.challenger?.user_metadata?.warrior_name?.charAt(0) || "?"}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="text-sm font-bold pixel-font">
                   {proposal.challenger?.user_metadata?.warrior_name || "UNKNOWN"}
@@ -253,8 +247,16 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
               </div>
 
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
-                  <span className="pixel-font">{proposal.opponent?.user_metadata?.warrior_name?.charAt(0) || "?"}</span>
+                <div className="mb-1">
+                  {proposal.opponent_warrior.element_type ? (
+                    <ElementalIcon elementType={proposal.opponent_warrior.element_type as ElementType} size="sm" />
+                  ) : (
+                    <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
+                      <span className="pixel-font">
+                        {proposal.opponent?.user_metadata?.warrior_name?.charAt(0) || "?"}
+                      </span>
+                    </div>
+                  )}
                 </div>
                 <div className="text-sm font-bold pixel-font">
                   {proposal.opponent?.user_metadata?.warrior_name || "YOU"}

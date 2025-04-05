@@ -1,6 +1,7 @@
 "use client"
 
 import { Sword, Shield } from "lucide-react"
+import ElementalIcon from "./elemental-icon"
 import type { ElementType } from "@/components/elemental-warrior-selector"
 
 interface WarriorCardProps {
@@ -17,7 +18,7 @@ export default function WarriorCard({ warrior, onBattle }: WarriorCardProps) {
           <div className="text-center mb-4">
             <div className="mb-2">
               {warrior.element_type ? (
-                <div className={`elemental-icon w-16 h-16 element-${warrior.element_type as ElementType}`}></div>
+                <ElementalIcon elementType={warrior.element_type as ElementType} size="lg" />
               ) : (
                 <div className="inline-flex items-center justify-center w-16 h-16 bg-red-600 mb-2 border-2 border-white">
                   <span className="text-2xl pixel-font text-white">{warrior.name.charAt(0)}</span>

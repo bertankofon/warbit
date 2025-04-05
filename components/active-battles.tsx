@@ -4,6 +4,8 @@ import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Loader2, Sword } from "lucide-react"
 import BattleGameModal from "@/components/battle-game-modal"
+import ElementalIcon from "./elemental-icon"
+import type { ElementType } from "@/components/elemental-warrior-selector"
 
 interface ActiveBattlesProps {
   userId: string
@@ -18,7 +20,40 @@ export default function ActiveBattles({ userId }: ActiveBattlesProps) {
 
   useEffect(() => {
     fetchActiveBattles()
-  }, [])
+
+    // Set up real-time subscription for battle updates
+    const battleSubscription = supabase
+      .channel("public:battles")
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "battles",
+          filter: `challenger_id=eq.${userId}`,
+        },
+        () => {
+          fetchActiveBattles()
+        },
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "battles",
+          filter: `opponent_id=eq.${userId}`,
+        },
+        () => {
+          fetchActiveBattles()
+        },
+      )
+      .subscribe()
+
+    return () => {
+      battleSubscription.unsubscribe()
+    }
+  }, [userId, supabase])
 
   const fetchActiveBattles = async () => {
     setLoading(true)
@@ -99,6 +134,7 @@ export default function ActiveBattles({ userId }: ActiveBattlesProps) {
           challenger_warrior: {
             name: "Pixel Crusher",
             token_symbol: "PIXL",
+            element_type: "fire",
           },
           opponent: {
             id: userId,
@@ -107,6 +143,7 @@ export default function ActiveBattles({ userId }: ActiveBattlesProps) {
           opponent_warrior: {
             name: "Your Warrior",
             token_symbol: "YOUR",
+            element_type: "water",
           },
         },
       ])
@@ -147,8 +184,14 @@ export default function ActiveBattles({ userId }: ActiveBattlesProps) {
 
             <div className="flex justify-between items-center mb-4">
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
-                  <span className="pixel-font">{battle.challenger_warrior.name.charAt(0)}</span>
+                <div className="mb-1">
+                  {battle.challenger_warrior.element_type ? (
+                    <ElementalIcon elementType={battle.challenger_warrior.element_type as ElementType} size="sm" />
+                  ) : (
+                    <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
+                      <span className="pixel-font">{battle.challenger_warrior.name.charAt(0)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="text-sm font-bold pixel-font">{battle.challenger_warrior.name}</div>
                 <div className="text-xs text-gray-400 pixel-font">{battle.challenger_warrior.token_symbol}</div>
@@ -160,8 +203,14 @@ export default function ActiveBattles({ userId }: ActiveBattlesProps) {
               </div>
 
               <div className="text-center">
-                <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
-                  <span className="pixel-font">{battle.opponent_warrior.name.charAt(0)}</span>
+                <div className="mb-1">
+                  {battle.opponent_warrior.element_type ? (
+                    <ElementalIcon elementType={battle.opponent_warrior.element_type as ElementType} size="sm" />
+                  ) : (
+                    <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
+                      <span className="pixel-font">{battle.opponent_warrior.name.charAt(0)}</span>
+                    </div>
+                  )}
                 </div>
                 <div className="text-sm font-bold pixel-font">{battle.opponent_warrior.name}</div>
                 <div className="text-xs text-gray-400 pixel-font">{battle.opponent_warrior.token_symbol}</div>
