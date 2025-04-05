@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Sword } from "lucide-react"
 import BattleGameModal from "@/components/battle-game-modal"
 
@@ -137,55 +135,51 @@ export default function ActiveBattles({ userId }: ActiveBattlesProps) {
   return (
     <div className="space-y-4">
       {battles.map((battle) => (
-        <Card key={battle.id} className="bg-gray-800 border-yellow-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-yellow-400 flex items-center">
-              <Sword className="h-5 w-5 mr-2" />
-              Active Battle
-            </CardTitle>
-            <CardDescription>
-              Battle between {battle.challenger_warrior.name} and {battle.opponent_warrior.name}
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pb-2">
-            <div className="flex justify-between items-center">
+        <div key={battle.id} className="pixel-border bg-gray-900">
+          <div className="bg-black p-4">
+            <div className="flex items-center mb-2">
+              <Sword className="h-5 w-5 mr-2 text-yellow-400" />
+              <h3 className="text-yellow-400 pixel-font">ACTIVE BATTLE</h3>
+            </div>
+            <p className="text-gray-400 text-sm mb-4 pixel-font">
+              BATTLE BETWEEN {battle.challenger_warrior.name} AND {battle.opponent_warrior.name}
+            </p>
+
+            <div className="flex justify-between items-center mb-4">
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
-                  <span>{battle.challenger_warrior.name.charAt(0)}</span>
+                  <span className="pixel-font">{battle.challenger_warrior.name.charAt(0)}</span>
                 </div>
-                <div className="text-sm font-bold">{battle.challenger_warrior.name}</div>
-                <div className="text-xs text-gray-400">{battle.challenger_warrior.token_symbol}</div>
+                <div className="text-sm font-bold pixel-font">{battle.challenger_warrior.name}</div>
+                <div className="text-xs text-gray-400 pixel-font">{battle.challenger_warrior.token_symbol}</div>
               </div>
 
               <div className="text-center">
-                <div className="bg-yellow-500 text-black font-bold px-3 py-1 rounded-md mb-1">
-                  {battle.stake_amount} ETH
-                </div>
-                <div className="text-xs text-gray-400">Stake Amount</div>
+                <div className="bg-yellow-500 text-black font-bold px-3 py-1 pixel-font">{battle.stake_amount} ETH</div>
+                <div className="text-xs text-gray-400 pixel-font">STAKE</div>
               </div>
 
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
-                  <span>{battle.opponent_warrior.name.charAt(0)}</span>
+                  <span className="pixel-font">{battle.opponent_warrior.name.charAt(0)}</span>
                 </div>
-                <div className="text-sm font-bold">{battle.opponent_warrior.name}</div>
-                <div className="text-xs text-gray-400">{battle.opponent_warrior.token_symbol}</div>
+                <div className="text-sm font-bold pixel-font">{battle.opponent_warrior.name}</div>
+                <div className="text-xs text-gray-400 pixel-font">{battle.opponent_warrior.token_symbol}</div>
               </div>
             </div>
-            <div className="mt-3 text-xs text-gray-400 text-center">
-              Started {new Date(battle.created_at).toLocaleString()}
+
+            <div className="mt-3 text-xs text-gray-400 text-center pixel-font">
+              STARTED {new Date(battle.created_at).toLocaleString()}
             </div>
-          </CardContent>
-          <CardFooter>
-            <Button
-              onClick={() => handleContinueBattle(battle)}
-              className="w-full bg-green-500 hover:bg-green-600 text-black"
-            >
-              <Sword className="h-4 w-4 mr-2" />
-              Continue Battle
-            </Button>
-          </CardFooter>
-        </Card>
+
+            <div className="mt-4">
+              <button onClick={() => handleContinueBattle(battle)} className="w-full pixel-button pixel-button-green">
+                <Sword className="h-4 w-4 mr-2 inline-block" />
+                CONTINUE BATTLE
+              </button>
+            </div>
+          </div>
+        </div>
       ))}
 
       {showBattleGame && activeBattle && (

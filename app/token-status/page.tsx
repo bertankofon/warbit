@@ -72,23 +72,54 @@ export default function TokenStatus() {
                     .single()
 
                   if (!existingWarrior) {
-                    // Create new warrior record
-                    const { error: warriorError } = await supabase.from("warriors").insert({
-                      user_id: session.user.id,
-                      name: session.user.user_metadata.warrior_name,
-                      token_symbol: session.user.user_metadata.token_symbol,
-                      token_address: tokenStatus.tokenData.address,
-                      level: 1,
-                      wins: 0,
-                      losses: 0,
-                      token_balance: tokenStatus.tokenData.startingAppSupply,
-                      token_value: "0.00",
-                    })
+                    try {
+                      // First try to create warrior record with element_type
+                      const { error: warriorError } = await supabase.from("warriors").insert({
+                        user_id: session.user.id,
+                        name: session.user.user_metadata.warrior_name,
+                        token_symbol: session.user.user_metadata.token_symbol,
+                        token_address: tokenStatus.tokenData.address,
+                        element_type: session.user.user_metadata.element_type || "fire",
+                        level: 1,
+                        wins: 0,
+                        losses: 0,
+                        token_balance: tokenStatus.tokenData.startingAppSupply,
+                        token_value: "0.00",
+                      })
 
-                    if (warriorError) {
-                      console.error("Error creating warrior record:", warriorError)
-                    } else {
-                      console.log("Warrior record created successfully")
+                      if (warriorError) {
+                        // If error mentions missing column, try again without element_type
+                        if (
+                          warriorError.message &&
+                          (warriorError.message.includes("element_type") ||
+                            warriorError.message.includes("warrior_icon"))
+                        ) {
+                          console.log("element_type column not found, trying without it")
+                          const { error: retryError } = await supabase.from("warriors").insert({
+                            user_id: session.user.id,
+                            name: session.user.user_metadata.warrior_name,
+                            token_symbol: session.user.user_metadata.token_symbol,
+                            token_address: tokenStatus.tokenData.address,
+                            level: 1,
+                            wins: 0,
+                            losses: 0,
+                            token_balance: tokenStatus.tokenData.startingAppSupply,
+                            token_value: "0.00",
+                          })
+
+                          if (retryError) {
+                            console.error("Error creating warrior record (retry):", retryError)
+                          } else {
+                            console.log("Warrior record created successfully (without element_type)")
+                          }
+                        } else {
+                          console.error("Error creating warrior record:", warriorError)
+                        }
+                      } else {
+                        console.log("Warrior record created successfully")
+                      }
+                    } catch (error) {
+                      console.error("Error creating warrior record:", error)
                     }
                   } else {
                     console.log("Warrior record already exists, skipping creation")

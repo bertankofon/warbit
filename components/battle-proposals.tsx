@@ -2,8 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Loader2, Sword, Shield, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import BattleGameModal from "@/components/battle-game-modal"
@@ -224,63 +222,62 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
   return (
     <div className="space-y-4">
       {proposals.map((proposal) => (
-        <Card key={proposal.id} className="bg-gray-800 border-yellow-500">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-yellow-400 flex items-center">
-              <Sword className="h-5 w-5 mr-2" />
-              Battle Challenge
-            </CardTitle>
-            <CardDescription>
-              {proposal.challenger?.user_metadata?.warrior_name || "Unknown Warrior"} has challenged you to a battle!
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="pb-2">
-            <div className="flex justify-between items-center">
+        <div key={proposal.id} className="pixel-border bg-gray-900">
+          <div className="bg-black p-4">
+            <div className="flex items-center mb-2">
+              <Sword className="h-5 w-5 mr-2 text-yellow-400" />
+              <h3 className="text-yellow-400 pixel-font">BATTLE CHALLENGE</h3>
+            </div>
+            <p className="text-gray-400 text-sm mb-4 pixel-font">
+              {proposal.challenger?.user_metadata?.warrior_name || "UNKNOWN WARRIOR"} HAS CHALLENGED YOU TO A BATTLE!
+            </p>
+
+            <div className="flex justify-between items-center mb-4">
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
-                  <span>{proposal.challenger?.user_metadata?.warrior_name?.charAt(0) || "?"}</span>
+                  <span className="pixel-font">
+                    {proposal.challenger?.user_metadata?.warrior_name?.charAt(0) || "?"}
+                  </span>
                 </div>
-                <div className="text-sm font-bold">{proposal.challenger?.user_metadata?.warrior_name || "Unknown"}</div>
-                <div className="text-xs text-gray-400">{proposal.challenger_warrior?.token_symbol}</div>
+                <div className="text-sm font-bold pixel-font">
+                  {proposal.challenger?.user_metadata?.warrior_name || "UNKNOWN"}
+                </div>
+                <div className="text-xs text-gray-400 pixel-font">{proposal.challenger_warrior?.token_symbol}</div>
               </div>
 
               <div className="text-center">
-                <div className="bg-yellow-500 text-black font-bold px-3 py-1 rounded-md mb-1">
+                <div className="bg-yellow-500 text-black font-bold px-3 py-1 pixel-font">
                   {proposal.stake_amount} ETH
                 </div>
-                <div className="text-xs text-gray-400">Stake Amount</div>
+                <div className="text-xs text-gray-400 pixel-font">STAKE</div>
               </div>
 
               <div className="text-center">
                 <div className="inline-flex items-center justify-center w-10 h-10 rounded-full bg-gray-700 mb-1">
-                  <span>{proposal.opponent?.user_metadata?.warrior_name?.charAt(0) || "?"}</span>
+                  <span className="pixel-font">{proposal.opponent?.user_metadata?.warrior_name?.charAt(0) || "?"}</span>
                 </div>
-                <div className="text-sm font-bold">{proposal.opponent?.user_metadata?.warrior_name || "You"}</div>
-                <div className="text-xs text-gray-400">{proposal.opponent_warrior?.token_symbol}</div>
+                <div className="text-sm font-bold pixel-font">
+                  {proposal.opponent?.user_metadata?.warrior_name || "YOU"}
+                </div>
+                <div className="text-xs text-gray-400 pixel-font">{proposal.opponent_warrior?.token_symbol}</div>
               </div>
             </div>
-            <div className="mt-3 text-xs text-gray-400 text-center">
-              Proposed {new Date(proposal.created_at).toLocaleString()}
+
+            <div className="flex gap-2">
+              <button
+                onClick={() => handleDecline(proposal.id)}
+                className="flex-1 border-2 border-red-500 text-red-400 hover:bg-red-900/30 p-2 pixel-font"
+              >
+                <Shield className="h-4 w-4 mr-2 inline-block" />
+                DECLINE
+              </button>
+              <button onClick={() => handleAccept(proposal.id)} className="flex-1 pixel-button pixel-button-green">
+                <Sword className="h-4 w-4 mr-2 inline-block" />
+                ACCEPT
+              </button>
             </div>
-          </CardContent>
-          <CardFooter className="flex gap-2">
-            <Button
-              variant="outline"
-              onClick={() => handleDecline(proposal.id)}
-              className="flex-1 border-red-500 text-red-400 hover:bg-red-900/30"
-            >
-              <Shield className="h-4 w-4 mr-2" />
-              Decline
-            </Button>
-            <Button
-              onClick={() => handleAccept(proposal.id)}
-              className="flex-1 bg-green-500 hover:bg-green-600 text-black"
-            >
-              <Sword className="h-4 w-4 mr-2" />
-              Accept
-            </Button>
-          </CardFooter>
-        </Card>
+          </div>
+        </div>
       ))}
 
       {showBattleGame && activeBattle && (

@@ -3,47 +3,211 @@
 @tailwind utilities;
 
 :root {
+  /* Mario-inspired color palette */
+  --mario-red: #e52521;
+  --mario-blue: #049cd8;
+  --mario-yellow: #fbd000;
+  --mario-green: #43b047;
+  --mario-brown: #8b4513;
+  --mario-tan: #e6c88e;
+  --mario-black: #000000;
+  --mario-white: #ffffff;
+  --mario-sky: #5c94fc;
+  --mario-brick: #b13d27;
+
   --background: 0 0% 0%;
   --foreground: 0 0% 100%;
   --card: 0 0% 5%;
   --card-foreground: 0 0% 100%;
   --popover: 0 0% 5%;
   --popover-foreground: 0 0% 100%;
-  --primary: 60 100% 50%;
-  --primary-foreground: 0 0% 0%;
-  --secondary: 160 100% 40%;
-  --secondary-foreground: 0 0% 0%;
+  --primary: 0 80% 50%; /* Mario red */
+  --primary-foreground: 0 0% 100%;
+  --secondary: 210 100% 50%; /* Mario blue */
+  --secondary-foreground: 0 0% 100%;
   --muted: 0 0% 15%;
   --muted-foreground: 0 0% 60%;
-  --accent: 60 100% 50%;
+  --accent: 60 100% 50%; /* Mario yellow */
   --accent-foreground: 0 0% 0%;
   --destructive: 0 100% 50%;
   --destructive-foreground: 0 0% 100%;
   --border: 0 0% 20%;
   --input: 0 0% 20%;
   --ring: 60 100% 50%;
-  --chart-1: 160 100% 40%;
-  --chart-2: 60 100% 50%;
 }
 
 body {
-  @apply bg-black text-white;
+  @apply bg-blue-600; /* Mario sky blue background */
+  background-image: linear-gradient(to bottom, #5c94fc 0%, #5c94fc 70%, #00a800 70%, #00a800 100%);
+  background-attachment: fixed;
+  image-rendering: pixelated;
 }
 
+/* Mario-style 8-bit elements */
 .pixel-font {
-  font-family: "Courier New", monospace;
+  font-family: monospace, "Courier New", Courier;
   text-transform: uppercase;
   letter-spacing: 1px;
+  font-weight: bold;
+  text-shadow: 2px 2px 0 #000;
 }
 
-/* 8-bit style button effects */
-.pixel-font {
-  text-shadow: 2px 2px 0px rgba(0, 0, 0, 0.5);
+.mario-block {
+  @apply relative border-4 p-1;
+  border-color: #e6c88e;
+  background-color: #d89f55;
+  box-shadow: inset -4px -4px 0 #8b4513, 4px 4px 0 rgba(0, 0, 0, 0.2);
+  image-rendering: pixelated;
+}
+
+.question-block {
+  @apply relative border-4 p-1;
+  border-color: #fbd000;
+  background-color: #e5a00d;
+  box-shadow: inset -4px -4px 0 #b17d00, 4px 4px 0 rgba(0, 0, 0, 0.2);
+  image-rendering: pixelated;
+}
+
+.brick-block {
+  @apply relative border-4 p-1;
+  border-color: #b13d27;
+  background-color: #9b2c17;
+  box-shadow: inset -4px -4px 0 #7a1c07, 4px 4px 0 rgba(0, 0, 0, 0.2);
+  image-rendering: pixelated;
+}
+
+.pipe-green {
+  @apply relative border-4 p-1;
+  border-color: #43b047;
+  background-color: #3c9f40;
+  box-shadow: inset -4px -4px 0 #2e7b31, 4px 4px 0 rgba(0, 0, 0, 0.2);
+  image-rendering: pixelated;
+}
+
+.mario-button {
+  @apply bg-red-600 hover:bg-red-700 text-white font-bold px-4 py-2 uppercase;
+  font-family: monospace, "Courier New", Courier;
+  position: relative;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 0 0 #7a1c07;
+  transition: all 0.1s;
+  text-shadow: 1px 1px 0 #000;
+}
+
+.mario-button:active {
+  transform: translateY(2px);
+  box-shadow: 0 2px 0 0 #7a1c07;
+}
+
+.mario-button-green {
+  @apply bg-green-600 hover:bg-green-700;
+  box-shadow: 0 4px 0 0 #2e7b31;
+}
+
+.mario-button-blue {
+  @apply bg-blue-600 hover:bg-blue-700;
+  box-shadow: 0 4px 0 0 #0056a8;
+}
+
+.mario-button-yellow {
+  @apply bg-yellow-500 hover:bg-yellow-600 text-black;
+  box-shadow: 0 4px 0 0 #b17d00;
 }
 
 /* Pixelated images */
 img {
   image-rendering: pixelated;
+}
+
+/* Mario-style UI elements */
+.coin {
+  width: 16px;
+  height: 16px;
+  background-color: #fbd000;
+  border-radius: 50%;
+  box-shadow: inset -2px -2px 0 #b17d00;
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.mushroom {
+  width: 16px;
+  height: 16px;
+  background-color: #e52521;
+  border-radius: 50% 50% 0 0;
+  position: relative;
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.mushroom::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  background-color: #ffffff;
+  border-radius: 0 0 50% 50%;
+}
+
+/* 8-bit animations */
+@keyframes blink {
+  0%,
+  49% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
+  }
+}
+
+.blink {
+  animation: blink 1s infinite;
+}
+
+@keyframes float {
+  0% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+  100% {
+    transform: translateY(0px);
+  }
+}
+
+.float {
+  animation: float 2s infinite ease-in-out;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+.spin {
+  animation: spin 2s infinite linear;
+}
+
+@keyframes bounce {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-10px);
+  }
+}
+
+.bounce {
+  animation: bounce 1s infinite ease-in-out;
 }
 
 /* Battle animations */
@@ -215,5 +379,361 @@ img {
 
 .animate-ultimate {
   animation: ultimate 0.8s ease-in-out;
+}
+
+/* Mario-style brick pattern */
+.brick-pattern {
+  background-color: #b13d27;
+  background-image: linear-gradient(
+      90deg,
+      rgba(0, 0, 0, 0.1) 0%,
+      rgba(0, 0, 0, 0.1) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.1) 50%,
+      rgba(0, 0, 0, 0.1) 75%,
+      transparent 75%,
+      transparent 100%
+    ),
+    linear-gradient(
+      0deg,
+      rgba(0, 0, 0, 0.1) 0%,
+      rgba(0, 0, 0, 0.1) 25%,
+      transparent 25%,
+      transparent 50%,
+      rgba(0, 0, 0, 0.1) 50%,
+      rgba(0, 0, 0, 0.1) 75%,
+      transparent 75%,
+      transparent 100%
+    );
+  background-size: 16px 16px;
+}
+
+/* Question block pattern */
+.question-pattern {
+  background-color: #fbd000;
+  background-image: radial-gradient(circle at center, #ffffff 0%, #ffffff 10%, transparent 10%, transparent 100%);
+  background-size: 16px 16px;
+  background-position: center;
+}
+
+/* Cloud style */
+.mario-cloud {
+  position: relative;
+  width: 60px;
+  height: 30px;
+  background-color: white;
+  border-radius: 15px;
+}
+
+.mario-cloud::before,
+.mario-cloud::after {
+  content: "";
+  position: absolute;
+  background-color: white;
+  border-radius: 50%;
+}
+
+.mario-cloud::before {
+  width: 25px;
+  height: 25px;
+  top: -10px;
+  left: 10px;
+}
+
+.mario-cloud::after {
+  width: 20px;
+  height: 20px;
+  top: -8px;
+  right: 10px;
+}
+
+/* Container with Mario-style background */
+.mario-container {
+  background-color: rgba(0, 0, 0, 0.7);
+  border: 4px solid #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 0 0 4px #000000;
+  padding: 16px;
+}
+
+/* Pixel art character */
+.pixel-character {
+  width: 32px;
+  height: 32px;
+  background-color: var(--mario-red);
+  position: relative;
+}
+
+.pixel-character::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 25%;
+  width: 50%;
+  height: 25%;
+  background-color: var(--mario-brown);
+}
+
+.pixel-character::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 25%;
+  background-color: var(--mario-blue);
+}
+
+/* Warrior pixel icons */
+.pixel-warrior-icon {
+  image-rendering: pixelated;
+  border: 2px solid #000;
+  position: relative;
+  overflow: hidden;
+}
+
+.pixel-warrior-icon::before {
+  content: "";
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  image-rendering: pixelated;
+}
+
+.warrior-dragon::before {
+  background-color: var(--mario-red);
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.3), inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.warrior-knight::before {
+  background-color: var(--mario-blue);
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.3), inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.warrior-mage::before {
+  background-color: #9c27b0;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.3), inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.warrior-ninja::before {
+  background-color: #333;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.2), inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.warrior-robot::before {
+  background-color: #78909c;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.3), inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.warrior-samurai::before {
+  background-color: #b71c1c;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.3), inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.warrior-viking::before {
+  background-color: #0d47a1;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.3), inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+.warrior-wizard::before {
+  background-color: #4527a0;
+  box-shadow: inset 2px 2px 0 rgba(255, 255, 255, 0.3), inset -2px -2px 0 rgba(0, 0, 0, 0.3);
+}
+
+/* 8-bit eyes and details */
+.pixel-warrior-icon::after {
+  content: "";
+  position: absolute;
+  width: 50%;
+  height: 20%;
+  top: 35%;
+  left: 25%;
+  background-color: white;
+  box-shadow: 0 0 0 2px black;
+}
+
+/* Specific details for each warrior type */
+.warrior-dragon::after {
+  background-color: orange;
+  border-radius: 0;
+}
+
+.warrior-robot::after {
+  background-color: #0ff;
+  width: 60%;
+  left: 20%;
+}
+
+.warrior-wizard::after,
+.warrior-mage::after {
+  top: 50%;
+  width: 40%;
+  left: 30%;
+  height: 10%;
+}
+
+.warrior-ninja::after {
+  width: 80%;
+  height: 10%;
+  top: 40%;
+  left: 10%;
+  background-color: #555;
+}
+
+/* Elemental warrior icons */
+.elemental-icon {
+  image-rendering: pixelated;
+  border: 2px solid #000;
+  position: relative;
+  overflow: hidden;
+}
+
+/* Fire element */
+.element-fire {
+  background-color: #e52521;
+  background-image: radial-gradient(circle at 50% 30%, #ffcc00 0%, #ffcc00 10%, transparent 10%, transparent 100%),
+    radial-gradient(circle at 30% 50%, #ffcc00 0%, #ffcc00 8%, transparent 8%, transparent 100%),
+    radial-gradient(circle at 70% 50%, #ffcc00 0%, #ffcc00 8%, transparent 8%, transparent 100%);
+  box-shadow: inset 0 -8px 0 #7a1c07;
+}
+
+.element-fire::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 60%;
+  background: linear-gradient(to top, #ff4500 0%, transparent 100%);
+}
+
+.element-fire::after {
+  content: "F";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 black;
+}
+
+/* Water element */
+.element-water {
+  background-color: #049cd8;
+  background-image: linear-gradient(
+      to right,
+      transparent 0%,
+      transparent 45%,
+      #0056a8 45%,
+      #0056a8 55%,
+      transparent 55%,
+      transparent 100%
+    ),
+    linear-gradient(
+      to bottom,
+      transparent 0%,
+      transparent 45%,
+      #0056a8 45%,
+      #0056a8 55%,
+      transparent 55%,
+      transparent 100%
+    );
+  box-shadow: inset 0 -8px 0 #0056a8;
+}
+
+.element-water::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 40%;
+  background: linear-gradient(to top, #00a8ff 0%, transparent 100%);
+}
+
+.element-water::after {
+  content: "W";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 black;
+}
+
+/* Earth element */
+.element-earth {
+  background-color: #43b047;
+  background-image: linear-gradient(
+      45deg,
+      #8b4513 0%,
+      #8b4513 10%,
+      transparent 10%,
+      transparent 90%,
+      #8b4513 90%,
+      #8b4513 100%
+    ), linear-gradient(-45deg, #8b4513 0%, #8b4513 10%, transparent 10%, transparent 90%, #8b4513 90%, #8b4513 100%);
+  box-shadow: inset 0 -8px 0 #2e7b31;
+}
+
+.element-earth::before {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 30%;
+  background: linear-gradient(to top, #8b4513 0%, transparent 100%);
+}
+
+.element-earth::after {
+  content: "E";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: white;
+  font-size: 24px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 black;
+}
+
+/* Air element */
+.element-air {
+  background-color: #a8d8f0;
+  background-image: radial-gradient(circle at 30% 30%, white 0%, white 15%, transparent 15%, transparent 100%),
+    radial-gradient(circle at 70% 30%, white 0%, white 15%, transparent 15%, transparent 100%),
+    radial-gradient(circle at 50% 60%, white 0%, white 20%, transparent 20%, transparent 100%);
+  box-shadow: inset 0 -8px 0 #5c94fc;
+}
+
+.element-air::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(to bottom, rgba(255, 255, 255, 0.5) 0%, transparent 100%);
+}
+
+.element-air::after {
+  content: "A";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  color: #333;
+  font-size: 24px;
+  font-weight: bold;
+  text-shadow: 1px 1px 0 white;
 }
 

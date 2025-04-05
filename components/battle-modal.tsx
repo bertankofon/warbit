@@ -17,6 +17,7 @@ import { Label } from "@/components/ui/label"
 import { Loader2, Sword, AlertCircle } from "lucide-react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
+import type { ElementType } from "@/components/elemental-warrior-selector"
 
 interface BattleModalProps {
   opponent: any
@@ -89,8 +90,14 @@ export default function BattleModal({ opponent, myWarrior, onClose }: BattleModa
         <div className="py-4">
           <div className="flex justify-between items-center mb-6">
             <div className="text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-700 mb-2">
-                <span>{myWarrior.name.charAt(0)}</span>
+              <div className="mb-2">
+                {myWarrior.element_type ? (
+                  <div className={`elemental-icon w-12 h-12 element-${myWarrior.element_type as ElementType}`}></div>
+                ) : (
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-700 mb-2 border-2 border-yellow-500">
+                    <span className="text-2xl">{myWarrior.name.charAt(0)}</span>
+                  </div>
+                )}
               </div>
               <div className="font-bold">{myWarrior.name}</div>
               <div className="text-xs text-gray-400">{myWarrior.token_symbol}</div>
@@ -101,8 +108,14 @@ export default function BattleModal({ opponent, myWarrior, onClose }: BattleModa
             </div>
 
             <div className="text-center">
-              <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-700 mb-2">
-                <span>{opponent.name.charAt(0)}</span>
+              <div className="mb-2">
+                {opponent.element_type ? (
+                  <div className={`elemental-icon w-12 h-12 element-${opponent.element_type as ElementType}`}></div>
+                ) : (
+                  <div className="inline-flex items-center justify-center w-12 h-12 rounded-full bg-gray-700 mb-2 border-2 border-green-500">
+                    <span className="text-2xl">{opponent.name.charAt(0)}</span>
+                  </div>
+                )}
               </div>
               <div className="font-bold">{opponent.name}</div>
               <div className="text-xs text-gray-400">{opponent.token_symbol}</div>
