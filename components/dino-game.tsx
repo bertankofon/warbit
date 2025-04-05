@@ -33,6 +33,8 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
   const gameSpeedRef = useRef(5)
   const gameAreaRef = useRef<HTMLDivElement>(null)
   const gameOverRef = useRef(false)
+  const dinoYRef = useRef(0) // <-- Ref for the dino's vertical position
+  const scoreRef = useRef(0) // <-- Ref to track the current score
 
   // Game constants
   const GROUND_HEIGHT = 20
@@ -81,6 +83,7 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
     setGameOver(false)
     gameOverRef.current = false
     setScore(0)
+    scoreRef.current = 0
     setObstacles([])
     frameCountRef.current = 0
     gameSpeedRef.current = 5
@@ -91,7 +94,8 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
     // Start scoring
     scoreIntervalRef.current = setInterval(() => {
       if (!gameOverRef.current) {
-        setScore((prev) => prev + 1)
+        scoreRef.current += 1
+        setScore(scoreRef.current)
       }
     }, 100)
   }
@@ -101,7 +105,9 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
     setGameOver(false)
     gameOverRef.current = false
     setScore(0)
+    scoreRef.current = 0
     setDinoY(0)
+    dinoYRef.current = 0
     setJumping(false)
     setObstacles([])
     frameCountRef.current = 0
@@ -121,18 +127,20 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
 
       setDinoY((prev) => {
         const newY = prev + velocity
+        dinoYRef.current = newY // Update ref with the latest value
         velocity -= GRAVITY
 
-        // If dino is back on ground
+        // If dino is back on the ground
         if (newY <= 0) {
           clearInterval(jumpInterval)
           setJumping(false)
+          dinoYRef.current = 0
           return 0
         }
 
         return newY
       })
-    }, 16) // Use 16ms for smoother animation (approximately 60fps)
+    }, 16) // ~60fps
   }
 
   // Get obstacle type based on element
@@ -213,12 +221,12 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
           x: obs.x - gameSpeedRef.current,
         }))
 
-      // Check for collisions with each obstacle
+      // Collision detection using the current dinoY from the ref
       const dinoHitbox = {
         x: 50,
-        y: GROUND_HEIGHT + dinoY, // This now correctly positions the hitbox based on jump height
+        y: GROUND_HEIGHT + dinoYRef.current,
         width: DINO_WIDTH - 10,
-        height: DINO_HEIGHT - 10, // slightly adjusted for better collision detection
+        height: DINO_HEIGHT - 10,
       }
 
       for (const obs of updated) {
@@ -233,12 +241,8 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
           // Collision detected!
           console.log("Collision detected! Game over.")
 
-          // We need to use the ref to prevent multiple endGame calls
           if (!gameOverRef.current) {
             gameOverRef.current = true
-
-            // We need to call endGame outside of this setState callback
-            // to avoid React state update warnings
             setTimeout(() => endGame(), 0)
           }
           break
@@ -255,13 +259,12 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
   }
 
   const endGame = () => {
-    console.log("Game ending with score:", score)
+    console.log("Game ending with score:", scoreRef.current)
 
-    // Set game over state
+    // Stop all game loops and intervals
     setGameOver(true)
     gameOverRef.current = true
 
-    // Clear intervals
     if (scoreIntervalRef.current) {
       clearInterval(scoreIntervalRef.current)
       scoreIntervalRef.current = null
@@ -272,8 +275,9 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
       gameLoopRef.current = null
     }
 
-    // Notify parent component with final score
-    onGameOver(score)
+    // Make sure we pass the current score to the parent component
+    // Use the ref value to ensure we have the latest score
+    onGameOver(scoreRef.current)
   }
 
   // Add touch support for mobile devices
@@ -357,7 +361,6 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
     const obstacleStyle = styles.obstacle[obs.type]
     const isFlying = obs.type === "cloud"
 
-    // Base styles for all obstacles
     const baseStyle = {
       left: `${obs.x}px`,
       width: `${obs.width}px`,
@@ -365,7 +368,6 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
       bottom: isFlying ? `${GROUND_HEIGHT + 50}px` : `${GROUND_HEIGHT}px`,
     }
 
-    // Add specific shapes based on obstacle type
     switch (obs.type) {
       case "cactus":
         return (
@@ -398,7 +400,6 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
     }
   }
 
-  // Debug visualization for hitboxes (only in development)
   const showDebugHitboxes = process.env.NODE_ENV === "development" || showDebug
 
   return (
@@ -408,7 +409,7 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
 
       {/* Dino/Character */}
       <div
-        className="absolute left-12 bottom-0 flex items-center justify-center"
+        className="absolute left-12 flex items-center justify-center"
         style={{
           bottom: `${GROUND_HEIGHT + dinoY}px`,
           width: `${DINO_WIDTH}px`,
@@ -422,10 +423,9 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
       {/* Obstacles */}
       {obstacles.map((obs, index) => renderObstacle(obs, index))}
 
-      {/* Debug hitboxes (only visible in development) */}
+      {/* Debug hitboxes */}
       {showDebugHitboxes && (
         <>
-          {/* Dino hitbox */}
           <div
             className="absolute border-2 border-red-500 z-50 opacity-50"
             style={{
@@ -436,7 +436,6 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
             }}
           />
 
-          {/* Obstacle hitboxes */}
           {obstacles.map((obs, i) => (
             <div
               key={`hitbox-${i}`}

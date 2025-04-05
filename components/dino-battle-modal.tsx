@@ -38,6 +38,7 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
   const [myTurn, setMyTurn] = useState(false)
   const [waitingForOpponent, setWaitingForOpponent] = useState(false)
   const [gamePhase, setGamePhase] = useState<"waiting" | "playing" | "results">("waiting")
+  const [debugInfo, setDebugInfo] = useState<any>({})
 
   // Get the element type for the current player
   const getMyElementType = (): ElementType => {
@@ -52,7 +53,6 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
   useEffect(() => {
     fetchBattleState()
 
-    // Set up real-time subscription to battle updates
     const battleSubscription = supabase
       .channel(`battle-${battle.id}`)
       .on(
@@ -86,9 +86,9 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
 
       if (battleError) throw battleError
 
+      console.log("Current battle data:", currentBattle)
       setBattleData(currentBattle)
 
-      // Get current user session to determine if user is challenger
       const {
         data: { session },
       } = await supabase.auth.getSession()
@@ -98,11 +98,10 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
       if (currentBattle.turns && currentBattle.turns.length > 0) {
         processTurns(currentBattle.turns, userIsChallenger)
       } else {
-        // No turns yet, challenger goes first
         setCurrentTurn("challenger")
-        setMyTurn(userIsChallenger) // If I'm challenger, it's my turn
+        setMyTurn(userIsChallenger)
         setGamePhase(userIsChallenger ? "playing" : "waiting")
-        setWaitingForOpponent(!userIsChallenger) // If I'm not challenger, I'm waiting
+        setWaitingForOpponent(!userIsChallenger)
       }
     } catch (err) {
       console.error("Error fetching battle state:", err)
@@ -112,71 +111,12 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
     }
   }
 
-  const processTurns = (turns: any[], isUserChallenger: boolean) => {
-    // Process existing turns to determine game state
-    if (turns.length === 0) {
-      // No turns yet, challenger goes first
-      setCurrentTurn("challenger")
-      setMyTurn(isUserChallenger) // If I'm challenger, it's my turn
-      setGamePhase(isUserChallenger ? "playing" : "waiting")
-      setWaitingForOpponent(!isUserChallenger) // If I'm not challenger, I'm waiting
-      return
-    }
-
-    // Check if challenger has played
-    const challengerTurn = turns.find((turn) => turn.player === "challenger")
-    const challengerPlayed = !!challengerTurn && challengerTurn.score !== undefined
-
-    // Check if opponent has played
-    const opponentTurn = turns.find((turn) => turn.player === "opponent")
-    const opponentPlayed = !!opponentTurn && opponentTurn.score !== undefined
-
-    if (challengerPlayed) {
-      // Get challenger's score
-      setChallengerScore(challengerTurn?.score || 0)
-    }
-
-    if (opponentPlayed) {
-      // Get opponent's score
-      setOpponentScore(opponentTurn?.score || 0)
-    }
-
-    // Determine current turn and game phase
-    if (!challengerPlayed) {
-      setCurrentTurn("challenger")
-      setMyTurn(isUserChallenger) // If I'm challenger, it's my turn
-      setGamePhase(isUserChallenger ? "playing" : "waiting")
-      setWaitingForOpponent(!isUserChallenger) // If I'm not challenger, I'm waiting
-    } else if (!opponentPlayed) {
-      setCurrentTurn("opponent")
-      setMyTurn(!isUserChallenger) // If I'm opponent, it's my turn
-      setGamePhase(!isUserChallenger ? "playing" : "waiting")
-      setWaitingForOpponent(isUserChallenger) // If I'm challenger, I'm waiting
-    } else {
-      // Both have played, game is over
-      setGamePhase("results")
-      setGameOver(true)
-
-      // Determine winner
-      const cScore = challengerTurn?.score || 0
-      const oScore = opponentTurn?.score || 0
-
-      if (cScore > oScore) {
-        setWinner("challenger")
-      } else if (oScore > cScore) {
-        setWinner("opponent")
-      } else {
-        setWinner("draw")
-      }
-    }
-  }
-
   const handleGameOver = async (score: number) => {
     console.log("Game over with score:", score)
     setLoading(true)
 
     try {
-      // Update local state immediately
+      // Update local state immediately for UI feedback
       if (isChallenger) {
         setChallengerScore(score)
       } else {
@@ -193,8 +133,6 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
       if (battleError) throw battleError
 
       const turns = currentBattle.turns || []
-
-      // Add the new turn with the score
       const updatedTurns = [...turns]
       const player = isChallenger ? "challenger" : "opponent"
 
@@ -202,20 +140,23 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
       const existingTurnIndex = updatedTurns.findIndex((t) => t.player === player)
 
       if (existingTurnIndex >= 0) {
-        // Update existing turn
+        // Update existing turn with new score
         updatedTurns[existingTurnIndex] = {
           ...updatedTurns[existingTurnIndex],
-          score,
+          player,
+          score: score,
           timestamp: new Date().toISOString(),
         }
       } else {
-        // Add new turn
+        // Add new turn with score
         updatedTurns.push({
           player,
-          score,
+          score: score,
           timestamp: new Date().toISOString(),
         })
       }
+
+      console.log("Updating turns:", updatedTurns)
 
       // Update battle with new turns
       const { error: updateError } = await supabase.from("battles").update({ turns: updatedTurns }).eq("id", battle.id)
@@ -223,17 +164,18 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
       if (updateError) throw updateError
 
       // Check if both players have played
-      const bothPlayed =
-        updatedTurns.some((t) => t.player === "challenger") && updatedTurns.some((t) => t.player === "opponent")
+      const challengerTurn = updatedTurns.find((t) => t.player === "challenger")
+      const opponentTurn = updatedTurns.find((t) => t.player === "opponent")
+      const bothPlayed = !!challengerTurn && !!opponentTurn
 
       if (bothPlayed) {
         // Get scores
-        const challengerTurn = updatedTurns.find((t) => t.player === "challenger")
-        const opponentTurn = updatedTurns.find((t) => t.player === "opponent")
-
         const cScore = challengerTurn?.score || 0
         const oScore = opponentTurn?.score || 0
 
+        console.log("Both played. Challenger score:", cScore, "Opponent score:", oScore)
+
+        // Update UI with final scores
         setChallengerScore(cScore)
         setOpponentScore(oScore)
 
@@ -246,6 +188,7 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
           battleWinner = "opponent"
         }
 
+        console.log("Battle winner:", battleWinner)
         setWinner(battleWinner)
         setGameOver(true)
         setGamePhase("results")
@@ -262,6 +205,79 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
       setError("Failed to save your score")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const processTurns = (turns: any[], isUserChallenger: boolean) => {
+    if (!turns || turns.length === 0) {
+      setCurrentTurn("challenger")
+      setMyTurn(isUserChallenger)
+      setGamePhase(isUserChallenger ? "playing" : "waiting")
+      setWaitingForOpponent(!isUserChallenger)
+      return
+    }
+
+    console.log("Processing turns:", turns)
+
+    // Find turns for each player
+    const challengerTurn = turns.find((turn) => turn.player === "challenger")
+    const opponentTurn = turns.find((turn) => turn.player === "opponent")
+
+    // Debug info
+    setDebugInfo({
+      turns,
+      challengerTurn,
+      opponentTurn,
+      isUserChallenger,
+    })
+
+    // Check if each player has played and has a score
+    const challengerPlayed = !!challengerTurn && challengerTurn.score !== undefined
+    const opponentPlayed = !!opponentTurn && opponentTurn.score !== undefined
+
+    console.log("Challenger played:", challengerPlayed, "Opponent played:", opponentPlayed)
+    console.log("Challenger score:", challengerTurn?.score, "Opponent score:", opponentTurn?.score)
+
+    // Update scores in UI
+    if (challengerPlayed) {
+      setChallengerScore(Number(challengerTurn.score))
+    }
+
+    if (opponentPlayed) {
+      setOpponentScore(Number(opponentTurn.score))
+    }
+
+    // Determine current game state
+    if (challengerPlayed && opponentPlayed) {
+      // Both have played, show results
+      setGamePhase("results")
+      setGameOver(true)
+
+      // Determine winner
+      const cScore = Number(challengerTurn.score) || 0
+      const oScore = Number(opponentTurn.score) || 0
+
+      console.log("Final scores - Challenger:", cScore, "Opponent:", oScore)
+
+      if (cScore > oScore) {
+        setWinner("challenger")
+      } else if (oScore > cScore) {
+        setWinner("opponent")
+      } else {
+        setWinner("draw")
+      }
+    } else if (!challengerPlayed) {
+      // Challenger needs to play
+      setCurrentTurn("challenger")
+      setMyTurn(isUserChallenger)
+      setGamePhase(isUserChallenger ? "playing" : "waiting")
+      setWaitingForOpponent(!isUserChallenger)
+    } else if (!opponentPlayed) {
+      // Opponent needs to play
+      setCurrentTurn("opponent")
+      setMyTurn(!isUserChallenger)
+      setGamePhase(!isUserChallenger ? "playing" : "waiting")
+      setWaitingForOpponent(isUserChallenger)
     }
   }
 
@@ -356,6 +372,9 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
                     <div>My Turn: {myTurn ? "Yes" : "No"}</div>
                     <div>Game Phase: {gamePhase}</div>
                     <div>Battle ID: {battle.id}</div>
+                    <div>Challenger Score: {challengerScore}</div>
+                    <div>Opponent Score: {opponentScore}</div>
+                    <div>Turns: {JSON.stringify(debugInfo.turns)}</div>
                     <Button
                       onClick={() => {
                         setGamePhase("playing")
@@ -393,6 +412,15 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
                   {!isChallenger ? "YOUR SCORE: " : "OPPONENT SCORE: "}
                   {opponentScore}
                 </div>
+                {process.env.NODE_ENV === "development" && (
+                  <div className="mt-4 text-xs text-gray-500">
+                    <div>Debug Info:</div>
+                    <div>Challenger Score: {challengerScore}</div>
+                    <div>Opponent Score: {opponentScore}</div>
+                    <div>Winner: {winner}</div>
+                    <div>Turns: {JSON.stringify(debugInfo.turns)}</div>
+                  </div>
+                )}
               </div>
             </div>
           )}
