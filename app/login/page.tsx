@@ -5,169 +5,105 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
-import { createClient } from "@/lib/supabase"
-import { PixelButton } from "@/components/pixel-button"
 
-export default function LoginPage() {
+export default function Login() {
+  const router = useRouter()
+  const supabase = createClientComponentClient()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [isLoading, setIsLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState("")
-  const router = useRouter()
-  const { toast } = useToast()
-
-  // Add error handling for Supabase client creation
-  const [supabaseError, setSupabaseError] = useState<string | null>(null)
-  let supabase: ReturnType<typeof createClient>
-
-  try {
-    supabase = createClient()
-  } catch (error) {
-    if (error instanceof Error) {
-      setSupabaseError(error.message)
-    } else {
-      setSupabaseError("Failed to initialize Supabase client")
-    }
-  }
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
-    setErrorMessage("")
-
-    if (supabaseError) {
-      toast({
-        title: "Error",
-        description: "Cannot connect to authentication service. Please try again later.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!email || !password) {
-      toast({
-        title: "Error",
-        description: "Please enter your email and password",
-        variant: "destructive",
-      })
-      return
-    }
-
-    // Set loading state immediately
-    setIsLoading(true)
+    setLoading(true)
+    setError(null)
 
     try {
-      // Sign in with Supabase Auth
-      const { data, error } = await supabase.auth.signInWithPassword({
+      const { error } = await supabase.auth.signInWithPassword({
         email,
         password,
       })
 
-      if (error) {
-        throw error
-      }
+      if (error) throw error
 
-      if (data.user) {
-        toast({
-          title: "Success!",
-          description: "You've successfully logged in.",
-        })
-
-        // Redirect to dashboard
-        router.push("/dashboard")
-        router.refresh()
-      }
-    } catch (error: any) {
-      console.error("Login error:", error)
-      setErrorMessage(error.message || "Failed to log in. Please check your credentials.")
-      toast({
-        title: "Error",
-        description: error.message || "Failed to log in",
-        variant: "destructive",
-      })
-      // Make sure to set loading to false on error
-      setIsLoading(false)
+      router.push("/dashboard")
+    } catch (error) {
+      console.error("Error during login:", error)
+      setError(error instanceof Error ? error.message : "Invalid login credentials")
+    } finally {
+      setLoading(false)
     }
-    // Note: We don't set isLoading to false on success because we're redirecting
   }
 
   return (
-    <div className="container flex items-center justify-center min-h-screen py-12 px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="font-pixel text-4xl mb-4 text-center">WARBIT</h1>
-          <p className="font-pixel text-sm">Return to the battlefield!</p>
-        </div>
-
-        <div className="pixel-box">
-          <h2 className="font-pixel text-xl mb-6 text-center">LOG IN</h2>
-
-          <form onSubmit={handleLogin} className="space-y-6">
-            {supabaseError && (
-              <div className="text-sm text-red-500 p-2 bg-red-50 rounded border border-red-200 font-pixel">
-                {supabaseError}
-              </div>
-            )}
-
+    <div className="min-h-screen flex items-center justify-center bg-black p-4">
+      <Card className="w-full max-w-md border-green-500 bg-gray-900 text-white">
+        <CardHeader className="space-y-1 border-b border-green-500 pb-4">
+          <CardTitle className="text-2xl text-center text-green-400 pixel-font">ENTER BATTLE ARENA</CardTitle>
+          <CardDescription className="text-center text-gray-400">Log in to battle with your warrior</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <form onSubmit={handleLogin} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email" className="font-pixel text-xs">
-                EMAIL
+              <Label htmlFor="email" className="text-white">
+                Email
               </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="your@email.com"
+                placeholder="warrior@example.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                className="bg-gray-800 border-gray-700 text-white"
                 required
-                className="font-pixel text-sm h-10"
               />
             </div>
-
             <div className="space-y-2">
-              <Label htmlFor="password" className="font-pixel text-xs">
-                PASSWORD
+              <Label htmlFor="password" className="text-white">
+                Password
               </Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="********"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                className="bg-gray-800 border-gray-700 text-white"
                 required
-                className="font-pixel text-sm h-10"
               />
             </div>
-
-            {errorMessage && (
-              <div className="text-sm text-red-500 p-2 bg-red-50 rounded border border-red-200 font-pixel">
-                {errorMessage}
-              </div>
-            )}
-
-            <PixelButton type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? (
+            {error && <div className="text-red-500 text-sm">{error}</div>}
+            <Button
+              type="submit"
+              className="w-full bg-green-500 hover:bg-green-600 text-black font-bold"
+              disabled={loading}
+            >
+              {loading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin inline-block" />
-                  LOGGING IN...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Logging in...
                 </>
               ) : (
-                "LOG IN"
+                "Enter Arena"
               )}
-            </PixelButton>
-
-            <div className="text-center font-pixel text-xs mt-4">
-              Don't have a warrior?{" "}
-              <Link href="/signup" className="text-blue-600 hover:underline">
-                SIGN UP
-              </Link>
-            </div>
+            </Button>
           </form>
-        </div>
-      </div>
+        </CardContent>
+        <CardFooter className="flex flex-col space-y-2 border-t border-green-500 pt-4">
+          <div className="text-sm text-center text-gray-400">
+            Don't have a warrior yet?{" "}
+            <Link href="/signup" className="text-green-400 hover:underline">
+              Create one now
+            </Link>
+          </div>
+        </CardFooter>
+      </Card>
     </div>
   )
 }

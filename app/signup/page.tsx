@@ -5,275 +5,204 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
+import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
+import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { useToast } from "@/components/ui/use-toast"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { createToken } from "@/lib/metal-api"
 import { Loader2 } from "lucide-react"
-import { createClient } from "@/lib/supabase"
-import { PixelButton } from "@/components/pixel-button"
-import { PixelCharacter } from "@/components/pixel-character"
 
-const ELEMENTS = [
-  { id: "fire", name: "Fire", color: "bg-red-500" },
-  { id: "water", name: "Water", color: "bg-blue-500" },
-  { id: "earth", name: "Earth", color: "bg-green-500" },
-  { id: "air", name: "Air", color: "bg-purple-500" },
-]
-
-export default function SignupPage() {
+export default function SignUp() {
+  const router = useRouter()
+  const supabase = createClientComponentClient()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [warriorName, setWarriorName] = useState("")
-  const [warriorTicker, setWarriorTicker] = useState("")
-  const [selectedElement, setSelectedElement] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(false)
-  const [errorMessage, setErrorMessage] = useState("")
-  const router = useRouter()
-  const { toast } = useToast()
+  const [tokenSymbol, setTokenSymbol] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [step, setStep] = useState(1)
 
-  // Add error handling for Supabase client creation
-  const [supabaseError, setSupabaseError] = useState<string | null>(null)
-  let supabase: ReturnType<typeof createClient>
-
-  try {
-    supabase = createClient()
-  } catch (error) {
-    if (error instanceof Error) {
-      setSupabaseError(error.message)
-    } else {
-      setSupabaseError("Failed to initialize Supabase client")
-    }
-  }
-
-  const handleSignup = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault()
-    setErrorMessage("")
-
-    if (supabaseError) {
-      toast({
-        title: "Error",
-        description: "Cannot connect to authentication service. Please try again later.",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (!email || !password || !warriorName || !warriorTicker || !selectedElement) {
-      toast({
-        title: "Error",
-        description: "Please fill in all fields and select an element",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (warriorTicker.length > 5) {
-      toast({
-        title: "Error",
-        description: "Ticker must be 5 characters or less",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsLoading(true)
+    setLoading(true)
+    setError(null)
 
     try {
-      // Sign up with Supabase Auth - skip email verification
-      const { data, error } = await supabase.auth.signUp({
+      console.log("Creating token for warrior:", warriorName, "with symbol:", tokenSymbol)
+
+      // Create token using Metal API
+      const tokenResponse = await createToken({
+        name: `${warriorName} Token`,
+        symbol: tokenSymbol.toUpperCase(),
+        canDistribute: true,
+        canLP: true,
+      })
+
+      console.log("Token creation response:", tokenResponse)
+
+      if (!tokenResponse.jobId) {
+        throw new Error("Failed to create token: No job ID returned")
+      }
+
+      // Sign up user
+      const { error: signUpError, data } = await supabase.auth.signUp({
         email,
         password,
         options: {
           data: {
-            warrior: {
-              name: warriorName,
-              ticker: warriorTicker.toUpperCase(),
-              element: selectedElement,
-              created_at: new Date().toISOString(),
-              stats: {
-                level: 1,
-                experience: 0,
-                wins: 0,
-                losses: 0,
-              },
-            },
+            warrior_name: warriorName,
+            token_job_id: tokenResponse.jobId,
+            token_symbol: tokenSymbol.toUpperCase(),
           },
-          // Skip email verification for testing
-          emailRedirectTo: undefined,
         },
       })
 
-      if (error) {
-        throw error
-      }
+      if (signUpError) throw signUpError
 
-      if (data.user) {
-        // After successful signup, create a Metal holder for the user
-        const response = await fetch("/api/holders/create", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ holderId: data.user.id }),
-        })
+      console.log("User signed up successfully:", data)
 
-        if (!response.ok) {
-          const errorData = await response.json()
-          console.error("API error:", errorData)
-          // We'll continue even if holder creation fails, as we can retry later
-        }
-
-        toast({
-          title: "Success!",
-          description: "Your warrior has been created!",
-        })
-
-        // Redirect to dashboard
-        router.push("/dashboard")
-      }
-    } catch (error: any) {
-      console.error("Signup error:", error)
-      setErrorMessage(error.message || "Failed to create your account. Please try again.")
-      toast({
-        title: "Error",
-        description: error.message || "Failed to create your account",
-        variant: "destructive",
-      })
+      // Redirect to token status page
+      router.push(`/token-status?jobId=${tokenResponse.jobId}`)
+    } catch (error) {
+      console.error("Error during signup:", error)
+      setError(error instanceof Error ? error.message : "An error occurred during signup")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
   return (
-    <div className="container flex items-center justify-center min-h-screen py-12 px-4">
-      <div className="w-full max-w-md">
-        <div className="text-center mb-8">
-          <h1 className="font-pixel text-4xl mb-4 text-center">WARBIT</h1>
-          <p className="font-pixel text-sm">Create your warrior and join the battle!</p>
-        </div>
-
-        <div className="pixel-box mb-8">
-          <h2 className="font-pixel text-xl mb-6 text-center">SIGN UP</h2>
-
-          <form onSubmit={handleSignup} className="space-y-6">
-            {supabaseError && (
-              <div className="text-sm text-red-500 p-2 bg-red-50 rounded border border-red-200 font-pixel">
-                {supabaseError}
+    <div className="min-h-screen flex items-center justify-center bg-black p-4">
+      <Card className="w-full max-w-md border-yellow-500 bg-gray-900 text-white">
+        <CardHeader className="space-y-1 border-b border-yellow-500 pb-4">
+          <CardTitle className="text-2xl text-center text-yellow-400 pixel-font">CREATE YOUR WARRIOR</CardTitle>
+          <CardDescription className="text-center text-green-400">Sign up and mint your warrior token</CardDescription>
+        </CardHeader>
+        <CardContent className="pt-6">
+          <Tabs defaultValue="step1" value={`step${step}`}>
+            <TabsList className="grid w-full grid-cols-2 bg-gray-800">
+              <TabsTrigger
+                value="step1"
+                disabled={step !== 1}
+                className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black"
+              >
+                Warrior Info
+              </TabsTrigger>
+              <TabsTrigger
+                value="step2"
+                disabled={step !== 2}
+                className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black"
+              >
+                Account Setup
+              </TabsTrigger>
+            </TabsList>
+            <TabsContent value="step1" className="space-y-4 pt-4">
+              <div className="space-y-2">
+                <Label htmlFor="warriorName" className="text-white">
+                  Warrior Name
+                </Label>
+                <Input
+                  id="warriorName"
+                  placeholder="BattleMaster"
+                  value={warriorName}
+                  onChange={(e) => setWarriorName(e.target.value)}
+                  className="bg-gray-800 border-gray-700 text-white"
+                  required
+                />
               </div>
-            )}
-
-            <div className="space-y-2">
-              <Label htmlFor="email" className="font-pixel text-xs">
-                EMAIL
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                placeholder="your@email.com"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
-                className="font-pixel text-sm h-10"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="password" className="font-pixel text-xs">
-                PASSWORD
-              </Label>
-              <Input
-                id="password"
-                type="password"
-                placeholder="********"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                className="font-pixel text-sm h-10"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="warriorName" className="font-pixel text-xs">
-                WARRIOR NAME
-              </Label>
-              <Input
-                id="warriorName"
-                type="text"
-                placeholder="BattleMaster"
-                value={warriorName}
-                onChange={(e) => setWarriorName(e.target.value)}
-                required
-                className="font-pixel text-sm h-10"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="warriorTicker" className="font-pixel text-xs">
-                TICKER (MAX 5 CHARS)
-              </Label>
-              <Input
-                id="warriorTicker"
-                type="text"
-                placeholder="WRRR"
-                value={warriorTicker}
-                onChange={(e) => setWarriorTicker(e.target.value.toUpperCase())}
-                maxLength={5}
-                required
-                className="font-pixel text-sm h-10 uppercase"
-              />
-            </div>
-
-            <div className="space-y-2">
-              <Label className="font-pixel text-xs">ELEMENT</Label>
-              <div className="grid grid-cols-2 gap-4">
-                {ELEMENTS.map((element) => (
-                  <div
-                    key={element.id}
-                    onClick={() => setSelectedElement(element.id)}
-                    className={`cursor-pointer transition-all p-2 border-2 ${
-                      selectedElement === element.id
-                        ? `border-black shadow-[4px_4px_0px_0px_rgba(0,0,0,0.8)] element-${element.id}`
-                        : "border-gray-300 hover:border-gray-400"
-                    } flex flex-col items-center`}
+              <div className="space-y-2">
+                <Label htmlFor="tokenSymbol" className="text-white">
+                  Token Symbol (2-5 characters)
+                </Label>
+                <Input
+                  id="tokenSymbol"
+                  placeholder="WAR"
+                  value={tokenSymbol}
+                  onChange={(e) => setTokenSymbol(e.target.value.slice(0, 5))}
+                  className="bg-gray-800 border-gray-700 text-white uppercase"
+                  required
+                  maxLength={5}
+                  minLength={2}
+                />
+              </div>
+              <Button
+                onClick={() => setStep(2)}
+                className="w-full bg-yellow-500 hover:bg-yellow-600 text-black font-bold"
+                disabled={!warriorName || tokenSymbol.length < 2}
+              >
+                Next
+              </Button>
+            </TabsContent>
+            <TabsContent value="step2" className="space-y-4 pt-4">
+              <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="email" className="text-white">
+                    Email
+                  </Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="warrior@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="bg-gray-800 border-gray-700 text-white"
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="password" className="text-white">
+                    Password
+                  </Label>
+                  <Input
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="bg-gray-800 border-gray-700 text-white"
+                    required
+                  />
+                </div>
+                {error && <div className="text-red-500 text-sm">{error}</div>}
+                <div className="flex gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setStep(1)}
+                    className="flex-1 border-gray-700 text-white hover:bg-gray-800"
                   >
-                    <PixelCharacter element={element.id as any} size="sm" />
-                    <span className="font-pixel text-xs mt-2">{element.name}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {errorMessage && (
-              <div className="text-sm text-red-500 p-2 bg-red-50 rounded border border-red-200 font-pixel">
-                {errorMessage}
-              </div>
-            )}
-
-            <PixelButton
-              type="submit"
-              className="w-full"
-              disabled={isLoading}
-              variant={(selectedElement as any) || "default"}
-            >
-              {isLoading ? (
-                <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin inline-block" />
-                  CREATING...
-                </>
-              ) : (
-                "CREATE WARRIOR"
-              )}
-            </PixelButton>
-
-            <div className="text-center font-pixel text-xs mt-4">
-              Already have a warrior?{" "}
-              <Link href="/login" className="text-blue-600 hover:underline">
-                LOG IN
-              </Link>
-            </div>
-          </form>
-        </div>
-      </div>
+                    Back
+                  </Button>
+                  <Button
+                    type="submit"
+                    className="flex-1 bg-green-500 hover:bg-green-600 text-black font-bold"
+                    disabled={loading}
+                  >
+                    {loading ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Creating...
+                      </>
+                    ) : (
+                      "Create Warrior"
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </TabsContent>
+          </Tabs>
+        </CardContent>
+        <CardFooter className="flex flex-col space-y-2 border-t border-yellow-500 pt-4">
+          <div className="text-sm text-center text-gray-400">
+            Already have a warrior?{" "}
+            <Link href="/login" className="text-yellow-400 hover:underline">
+              Log in to battle
+            </Link>
+          </div>
+        </CardFooter>
+      </Card>
     </div>
   )
 }
