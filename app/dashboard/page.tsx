@@ -2,360 +2,167 @@
 
 import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
-import { Loader2, RefreshCw, LogOut, ExternalLink } from "lucide-react"
+import { Loader2, LogOut, Swords } from "lucide-react"
 import { createClient } from "@/lib/supabase"
+import { PixelButton } from "@/components/pixel-button"
+import { PixelCharacter } from "@/components/pixel-character"
 
-interface User {
+interface Warrior {
   id: string
-  email: string
-  holderAddress: string
+  name: string
+  ticker: string
+  element: string
+  owner: {
+    id: string
+    email: string
+  }
+  stats: {
+    level: number
+    experience: number
+    wins: number
+    losses: number
+  }
 }
 
-// Key for tracking welcome tokens in localStorage
-const WELCOME_TOKENS_KEY = "welcomeTokensReceived"
-
-// Maximum number of balance polling attempts
-const MAX_BALANCE_POLL_ATTEMPTS = 5
-
 export default function DashboardPage() {
-  // Set loading to true immediately on component mount
-  const [user, setUser] = useState<User | null>(null)
-  const [balance, setBalance] = useState<number | null>(null)
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const [warriors, setWarriors] = useState<Warrior[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [isSpending, setIsSpending] = useState(false)
-  const [isWithdrawing, setIsWithdrawing] = useState(false)
-  const [withdrawAddress, setWithdrawAddress] = useState("")
-  const [isRewarding, setIsRewarding] = useState(false)
-  const [isCreatingHolder, setIsCreatingHolder] = useState(false)
-  const [isDistributingWelcomeTokens, setIsDistributingWelcomeTokens] = useState(false)
-  const [isPollingBalance, setIsPollingBalance] = useState(false)
-  const [isNewWallet, setIsNewWallet] = useState(false)
+  const [balance, setBalance] = useState<number | null>(null)
   const router = useRouter()
   const { toast } = useToast()
   const supabase = createClient()
 
-  // This effect runs once on component mount
   useEffect(() => {
-    // Immediately show loading state
-    setIsLoading(true)
-
-    const fetchUserData = async () => {
+    const fetchData = async () => {
       try {
-        // Get the current user from Supabase
+        // Get current user
         const {
-          data: { user: authUser },
-          error,
+          data: { user },
+          error: userError,
         } = await supabase.auth.getUser()
 
-        if (error || !authUser) {
+        if (userError || !user) {
           throw new Error("Not authenticated")
         }
 
-        console.log("Auth user:", authUser.id)
+        setCurrentUser(user)
 
-        // Create or get the holder for this user
-        setIsCreatingHolder(true)
-        setIsNewWallet(false) // Default to false
-        const createResponse = await fetch("/api/holders/create", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
+        // For demo purposes, we'll create some mock warriors
+        // In a real app, you'd fetch this from your database
+        const mockWarriors: Warrior[] = [
+          {
+            id: "1",
+            name: "Flamebringer",
+            ticker: "FLAME",
+            element: "fire",
+            owner: {
+              id: "mock-1",
+              email: "warrior1@example.com",
+            },
+            stats: {
+              level: 3,
+              experience: 45,
+              wins: 5,
+              losses: 2,
+            },
           },
-          body: JSON.stringify({ holderId: authUser.id }),
-        })
+          {
+            id: "2",
+            name: "Aquamancer",
+            ticker: "AQUA",
+            element: "water",
+            owner: {
+              id: "mock-2",
+              email: "warrior2@example.com",
+            },
+            stats: {
+              level: 2,
+              experience: 25,
+              wins: 3,
+              losses: 1,
+            },
+          },
+          {
+            id: "3",
+            name: "Stoneguard",
+            ticker: "STONE",
+            element: "earth",
+            owner: {
+              id: "mock-3",
+              email: "warrior3@example.com",
+            },
+            stats: {
+              level: 4,
+              experience: 70,
+              wins: 8,
+              losses: 3,
+            },
+          },
+          {
+            id: "4",
+            name: "Windwalker",
+            ticker: "WIND",
+            element: "air",
+            owner: {
+              id: "mock-4",
+              email: "warrior4@example.com",
+            },
+            stats: {
+              level: 2,
+              experience: 30,
+              wins: 4,
+              losses: 2,
+            },
+          },
+        ]
 
-        if (!createResponse.ok) {
-          const errorData = await createResponse.json()
-          console.error("Error creating/getting holder:", errorData)
-          throw new Error("Failed to create or get holder")
+        // Add the current user's warrior if it exists
+        if (user.user_metadata?.warrior) {
+          const userWarrior: Warrior = {
+            id: user.id,
+            name: user.user_metadata.warrior.name,
+            ticker: user.user_metadata.warrior.ticker,
+            element: user.user_metadata.warrior.element,
+            owner: {
+              id: user.id,
+              email: user.email,
+            },
+            stats: user.user_metadata.warrior.stats,
+          }
+
+          // Add to beginning of array
+          mockWarriors.unshift(userWarrior)
         }
 
-        const holderData = await createResponse.json()
-        console.log("Holder data:", holderData)
+        setWarriors(mockWarriors)
 
-        // Set isNewWallet based on the response
-        setIsNewWallet(holderData.isNew === true)
-
-        setUser({
-          id: authUser.id,
-          email: authUser.email || "",
-          holderAddress: holderData.address,
-        })
-        setIsCreatingHolder(false)
-
-        // Check if this is the first confirmed login (email verified)
-        // and if welcome tokens have not been distributed yet
-        const hasReceivedWelcomeTokens = localStorage.getItem(WELCOME_TOKENS_KEY) === "true"
-        const isEmailVerified = authUser.email_confirmed_at != null
-
-        // First fetch the initial balance
-        await fetchBalance(authUser.id)
-
-        // Only distribute welcome tokens if:
-        // 1. Email is verified
-        // 2. User hasn't received welcome tokens before (according to localStorage)
-        // 3. This is a new holder (not an existing one)
-        if (isEmailVerified && !hasReceivedWelcomeTokens && holderData.isNew) {
-          await distributeWelcomeTokens(authUser.id)
+        // Fetch token balance
+        try {
+          const response = await fetch(`/api/holders/${user.id}/balance`)
+          if (response.ok) {
+            const data = await response.json()
+            setBalance(data.balance)
+          }
+        } catch (error) {
+          console.error("Error fetching balance:", error)
         }
       } catch (error) {
-        console.error("Error fetching user data:", error)
+        console.error("Error fetching data:", error)
         toast({
           title: "Error",
-          description: "Failed to load user data. Please try again.",
+          description: "Failed to load dashboard data",
           variant: "destructive",
         })
-        // Redirect to login if not authenticated
         router.push("/login")
       } finally {
         setIsLoading(false)
       }
     }
 
-    fetchUserData()
+    fetchData()
   }, [router, supabase, toast])
-
-  const pollBalance = async (userId: string, attempts = 0) => {
-    if (attempts >= MAX_BALANCE_POLL_ATTEMPTS) {
-      setIsPollingBalance(false)
-      return
-    }
-
-    try {
-      const response = await fetch(`/api/holders/${userId}/balance`)
-      if (!response.ok) {
-        throw new Error("Failed to fetch balance")
-      }
-
-      const data = await response.json()
-
-      // If balance is greater than 0, stop polling
-      if (data.balance > 0) {
-        setBalance(data.balance)
-        setIsPollingBalance(false)
-        return
-      }
-
-      // Otherwise, wait and try again
-      setTimeout(() => pollBalance(userId, attempts + 1), 2000)
-    } catch (error) {
-      console.error("Error polling balance:", error)
-      setIsPollingBalance(false)
-    }
-  }
-
-  const distributeWelcomeTokens = async (userId: string) => {
-    setIsDistributingWelcomeTokens(true)
-    try {
-      const response = await fetch(`/api/holders/${userId}/welcome-tokens`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error("Error distributing welcome tokens:", errorData)
-        return
-      }
-
-      const data = await response.json()
-
-      // Mark welcome tokens as received
-      localStorage.setItem(WELCOME_TOKENS_KEY, "true")
-
-      toast({
-        title: "Welcome!",
-        description: "You've received 10 tokens as a welcome bonus!",
-      })
-
-      // Start polling for balance updates
-      setIsPollingBalance(true)
-      pollBalance(userId)
-    } catch (error) {
-      console.error("Error distributing welcome tokens:", error)
-    } finally {
-      setIsDistributingWelcomeTokens(false)
-    }
-  }
-
-  const fetchBalance = async (holderId: string) => {
-    try {
-      const response = await fetch(`/api/holders/${holderId}/balance`)
-      if (!response.ok) {
-        const errorData = await response.json()
-        console.error("Error fetching balance:", errorData)
-        throw new Error("Failed to fetch balance")
-      }
-      const data = await response.json()
-      setBalance(data.balance)
-      return data.balance
-    } catch (error) {
-      console.error("Error fetching balance:", error)
-      toast({
-        title: "Error",
-        description: "Failed to fetch your token balance",
-        variant: "destructive",
-      })
-      setBalance(0) // Default to 0 on error
-      return 0
-    }
-  }
-
-  const handleSpendToken = async () => {
-    if (!user) return
-
-    setIsSpending(true)
-    try {
-      const response = await fetch(`/api/holders/${user.id}/spend`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ amount: 1 }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to spend token")
-      }
-
-      // Optimistically update the balance
-      if (balance !== null) {
-        setBalance(Math.max(0, balance - 1))
-      }
-
-      // Refresh balance to ensure accuracy
-      await fetchBalance(user.id)
-
-      toast({
-        title: "Success!",
-        description: "You spent 1 token successfully!",
-      })
-    } catch (error) {
-      console.error("Error spending token:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to spend token. Do you have enough balance?",
-        variant: "destructive",
-      })
-      // Refresh balance to ensure accuracy after error
-      if (user) {
-        await fetchBalance(user.id)
-      }
-    } finally {
-      setIsSpending(false)
-    }
-  }
-
-  const handleRewardToken = async () => {
-    if (!user) return
-
-    setIsRewarding(true)
-    try {
-      const response = await fetch(`/api/holders/${user.id}/reward`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ amount: 1 }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to reward token")
-      }
-
-      // Optimistically update the balance by adding 1 token
-      if (balance !== null) {
-        setBalance(balance + 1)
-      }
-
-      toast({
-        title: "Success!",
-        description: "You received 1 token as a reward!",
-      })
-
-      // Fetch the actual balance after a short delay to ensure consistency
-      setTimeout(async () => {
-        if (user) {
-          await fetchBalance(user.id)
-        }
-      }, 2000)
-    } catch (error) {
-      console.error("Error rewarding token:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to reward token.",
-        variant: "destructive",
-      })
-      // Refresh balance to ensure accuracy after error
-      if (user) {
-        await fetchBalance(user.id)
-      }
-    } finally {
-      setIsRewarding(false)
-    }
-  }
-
-  const handleWithdraw = async () => {
-    if (!user || !withdrawAddress || balance === 0) return
-
-    setIsWithdrawing(true)
-    try {
-      const response = await fetch(`/api/holders/${user.id}/withdraw`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          toAddress: withdrawAddress,
-          amount: balance,
-        }),
-      })
-
-      if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || "Failed to withdraw tokens")
-      }
-
-      // Optimistically update the balance to 0 after withdrawal
-      setBalance(0)
-
-      toast({
-        title: "Success!",
-        description: `You withdrew ${balance} tokens to ${withdrawAddress}`,
-      })
-
-      setWithdrawAddress("")
-
-      // Fetch the actual balance after a short delay to ensure consistency
-      setTimeout(async () => {
-        if (user) {
-          await fetchBalance(user.id)
-        }
-      }, 2000)
-    } catch (error) {
-      console.error("Error withdrawing tokens:", error)
-      toast({
-        title: "Error",
-        description: error instanceof Error ? error.message : "Failed to withdraw tokens",
-        variant: "destructive",
-      })
-      // Refresh balance to ensure accuracy after error
-      if (user) {
-        await fetchBalance(user.id)
-      }
-    } finally {
-      setIsWithdrawing(false)
-    }
-  }
 
   const handleLogout = async () => {
     await supabase.auth.signOut()
@@ -363,162 +170,117 @@ export default function DashboardPage() {
     router.refresh()
   }
 
-  // Function to open the wallet address on Basescan
-  const openOnBasescan = (address: string) => {
-    window.open(`https://basescan.org/address/${address}`, "_blank")
+  const handleBattleRequest = (opponent: Warrior) => {
+    toast({
+      title: "Battle Request Sent!",
+      description: `You challenged ${opponent.name} to a battle!`,
+    })
   }
 
-  // Function to truncate wallet address
-  const truncateAddress = (address: string) => {
-    if (!address) return ""
-    return `${address.substring(0, 6)}...${address.substring(address.length - 4)}`
-  }
-
-  // Show loading state for any async operation
-  if (isLoading || isCreatingHolder || isDistributingWelcomeTokens) {
+  if (isLoading) {
     return (
       <div className="container flex flex-col items-center justify-center min-h-screen gap-4">
         <Loader2 className="h-8 w-8 animate-spin" />
-        <p>
-          {isCreatingHolder
-            ? isNewWallet
-              ? "Setting up your wallet..."
-              : "Retrieving your wallet..."
-            : isDistributingWelcomeTokens
-              ? "Distributing your welcome tokens..."
-              : "Loading..."}
-        </p>
+        <p className="font-pixel">LOADING WARRIORS...</p>
       </div>
     )
   }
 
   return (
-    <div className="container max-w-4xl py-12">
+    <div className="container max-w-4xl py-12 px-4">
       <div className="flex justify-between items-center mb-8">
-        <h1 className="text-3xl font-bold">Token Dashboard</h1>
-        <Button variant="outline" onClick={handleLogout}>
+        <h1 className="font-pixel text-3xl">WARBIT</h1>
+        <PixelButton onClick={handleLogout} size="sm">
           <LogOut className="h-4 w-4 mr-2" />
-          Logout
-        </Button>
+          LOGOUT
+        </PixelButton>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle>Your Wallet</CardTitle>
-            <CardDescription>View your wallet details and balance</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <Label>Email</Label>
-              <p className="text-sm font-medium">{user?.email}</p>
-            </div>
-            <div>
-              <Label>Wallet Address</Label>
-              <div className="flex items-center justify-between mt-1">
-                <p className="text-sm font-mono">
-                  {user?.holderAddress ? truncateAddress(user.holderAddress) : "Loading..."}
-                </p>
-                {user?.holderAddress && (
-                  <Button
-                    variant="outline"
-                    size="icon"
-                    onClick={() => openOnBasescan(user.holderAddress)}
-                    title="View on Basescan"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                    <span className="sr-only">View on Basescan</span>
-                  </Button>
-                )}
+      {/* User's warrior card */}
+      {currentUser?.user_metadata?.warrior && (
+        <div className="mb-8">
+          <h2 className="font-pixel text-xl mb-4">YOUR WARRIOR</h2>
+          <div className="pixel-box">
+            <div className="flex flex-col md:flex-row items-center gap-4">
+              <div className={`p-4 element-${currentUser.user_metadata.warrior.element}`}>
+                <PixelCharacter element={currentUser.user_metadata.warrior.element} size="lg" />
               </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div>
-                <Label>Token Balance</Label>
-                <div className="flex items-center gap-2">
-                  <p className="text-2xl font-bold">
-                    {isPollingBalance ? (
-                      <span className="flex items-center">
-                        <Loader2 className="h-5 w-5 mr-2 animate-spin inline-block" />
-                        Updating...
-                      </span>
-                    ) : (
-                      balance
-                    )}
-                  </p>
+              <div className="flex-1">
+                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2">
+                  <h3 className="font-pixel text-lg">{currentUser.user_metadata.warrior.name}</h3>
+                  <span className="font-pixel text-sm bg-black text-white px-2 py-1">
+                    {currentUser.user_metadata.warrior.ticker}
+                  </span>
+                </div>
+                <p className="font-pixel text-xs mb-4 capitalize">
+                  {currentUser.user_metadata.warrior.element} Warrior • Level{" "}
+                  {currentUser.user_metadata.warrior.stats.level}
+                </p>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="border-2 border-black p-2">
+                    <p className="font-pixel text-xs">WINS</p>
+                    <p className="font-pixel text-lg">{currentUser.user_metadata.warrior.stats.wins}</p>
+                  </div>
+                  <div className="border-2 border-black p-2">
+                    <p className="font-pixel text-xs">LOSSES</p>
+                    <p className="font-pixel text-lg">{currentUser.user_metadata.warrior.stats.losses}</p>
+                  </div>
+                </div>
+                <div className="border-2 border-black p-2 mb-4">
+                  <p className="font-pixel text-xs">TOKENS</p>
+                  <p className="font-pixel text-lg">{balance ?? 0}</p>
                 </div>
               </div>
-              <Button
-                variant="outline"
-                size="icon"
-                onClick={() => user && fetchBalance(user.id)}
-                disabled={isLoading || isPollingBalance}
-              >
-                <RefreshCw className={`h-4 w-4 ${isLoading ? "animate-spin" : ""}`} />
-              </Button>
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
+      )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Token Actions</CardTitle>
-            <CardDescription>Spend or withdraw your tokens</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            <div className="space-y-2">
-              <div className="grid grid-cols-2 gap-2">
-                <Button onClick={handleSpendToken} disabled={isSpending || balance === 0 || isPollingBalance}>
-                  {isSpending ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    "Spend 1 Token"
-                  )}
-                </Button>
-                <Button onClick={handleRewardToken} disabled={isRewarding || isPollingBalance} variant="secondary">
-                  {isRewarding ? (
-                    <>
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                      Processing...
-                    </>
-                  ) : (
-                    "Reward 1 Token"
-                  )}
-                </Button>
+      {/* Other warriors */}
+      <div>
+        <h2 className="font-pixel text-xl mb-4">WARRIORS TO BATTLE</h2>
+        <div className="grid gap-4">
+          {warriors
+            .filter((warrior) => warrior.owner.id !== currentUser?.id)
+            .map((warrior) => (
+              <div key={warrior.id} className="pixel-box">
+                <div className="flex flex-col md:flex-row items-center gap-4">
+                  <div className={`p-4 element-${warrior.element}`}>
+                    <PixelCharacter element={warrior.element as any} size="md" />
+                  </div>
+                  <div className="flex-1">
+                    <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-2">
+                      <h3 className="font-pixel text-base">{warrior.name}</h3>
+                      <span className="font-pixel text-xs bg-black text-white px-2 py-1">{warrior.ticker}</span>
+                    </div>
+                    <p className="font-pixel text-xs mb-2 capitalize">
+                      {warrior.element} Warrior • Level {warrior.stats.level}
+                    </p>
+                    <div className="flex justify-between items-center">
+                      <div className="flex gap-4">
+                        <div className="text-center">
+                          <p className="font-pixel text-xs">WINS</p>
+                          <p className="font-pixel text-sm">{warrior.stats.wins}</p>
+                        </div>
+                        <div className="text-center">
+                          <p className="font-pixel text-xs">LOSSES</p>
+                          <p className="font-pixel text-sm">{warrior.stats.losses}</p>
+                        </div>
+                      </div>
+                      <PixelButton
+                        onClick={() => handleBattleRequest(warrior)}
+                        variant={warrior.element as any}
+                        size="sm"
+                      >
+                        <Swords className="h-4 w-4 mr-2" />
+                        BATTLE
+                      </PixelButton>
+                    </div>
+                  </div>
+                </div>
               </div>
-              <p className="text-xs text-muted-foreground">Spend tokens for fun or reward yourself with more tokens!</p>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="withdrawAddress">Withdraw Address</Label>
-              <Input
-                id="withdrawAddress"
-                placeholder="0x..."
-                value={withdrawAddress}
-                onChange={(e) => setWithdrawAddress(e.target.value)}
-                disabled={isPollingBalance}
-              />
-              <Button
-                className="w-full mt-2"
-                variant="outline"
-                onClick={handleWithdraw}
-                disabled={isWithdrawing || !withdrawAddress || balance === 0 || isPollingBalance}
-              >
-                {isWithdrawing ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Processing...
-                  </>
-                ) : (
-                  `Withdraw All Tokens (${balance})`
-                )}
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
+            ))}
+        </div>
       </div>
     </div>
   )

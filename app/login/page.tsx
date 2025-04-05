@@ -5,13 +5,12 @@ import type React from "react"
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/components/ui/use-toast"
 import { Loader2 } from "lucide-react"
 import { createClient } from "@/lib/supabase"
+import { PixelButton } from "@/components/pixel-button"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
@@ -77,7 +76,7 @@ export default function LoginPage() {
           description: "You've successfully logged in.",
         })
 
-        // Redirect to dashboard (middleware will handle auth check)
+        // Redirect to dashboard
         router.push("/dashboard")
         router.refresh()
       }
@@ -96,65 +95,79 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="container flex items-center justify-center min-h-screen py-12">
-      <Card className="w-full max-w-md">
-        <CardHeader>
-          <CardTitle className="text-2xl">Log In</CardTitle>
-          <CardDescription>Welcome back! Log in to your account</CardDescription>
-        </CardHeader>
-        <form onSubmit={handleLogin}>
-          <CardContent className="space-y-4">
+    <div className="container flex items-center justify-center min-h-screen py-12 px-4">
+      <div className="w-full max-w-md">
+        <div className="text-center mb-8">
+          <h1 className="font-pixel text-4xl mb-4 text-center">WARBIT</h1>
+          <p className="font-pixel text-sm">Return to the battlefield!</p>
+        </div>
+
+        <div className="pixel-box">
+          <h2 className="font-pixel text-xl mb-6 text-center">LOG IN</h2>
+
+          <form onSubmit={handleLogin} className="space-y-6">
             {supabaseError && (
-              <div className="text-sm text-red-500 p-2 bg-red-50 rounded border border-red-200">{supabaseError}</div>
+              <div className="text-sm text-red-500 p-2 bg-red-50 rounded border border-red-200 font-pixel">
+                {supabaseError}
+              </div>
             )}
+
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="email" className="font-pixel text-xs">
+                EMAIL
+              </Label>
               <Input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder="your@email.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
-                disabled={isLoading}
+                className="font-pixel text-sm h-10"
               />
             </div>
+
             <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
+              <Label htmlFor="password" className="font-pixel text-xs">
+                PASSWORD
+              </Label>
               <Input
                 id="password"
                 type="password"
-                placeholder="Enter your password"
+                placeholder="********"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
-                disabled={isLoading}
+                className="font-pixel text-sm h-10"
               />
             </div>
+
             {errorMessage && (
-              <div className="text-sm text-red-500 p-2 bg-red-50 rounded border border-red-200">{errorMessage}</div>
+              <div className="text-sm text-red-500 p-2 bg-red-50 rounded border border-red-200 font-pixel">
+                {errorMessage}
+              </div>
             )}
-          </CardContent>
-          <CardFooter className="flex flex-col space-y-4">
-            <Button className="w-full" type="submit" disabled={isLoading}>
+
+            <PixelButton type="submit" className="w-full" disabled={isLoading}>
               {isLoading ? (
                 <>
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Processing...
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin inline-block" />
+                  LOGGING IN...
                 </>
               ) : (
-                "Log In"
+                "LOG IN"
               )}
-            </Button>
-            <div className="text-sm text-center">
-              Don't have an account?{" "}
-              <Link href="/signup" className="text-primary hover:underline">
-                Sign up
+            </PixelButton>
+
+            <div className="text-center font-pixel text-xs mt-4">
+              Don't have a warrior?{" "}
+              <Link href="/signup" className="text-blue-600 hover:underline">
+                SIGN UP
               </Link>
             </div>
-          </CardFooter>
-        </form>
-      </Card>
+          </form>
+        </div>
+      </div>
     </div>
   )
 }

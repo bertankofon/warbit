@@ -68,13 +68,41 @@ export async function middleware(request: NextRequest) {
   } = await supabase.auth.getSession()
 
   // If no session and trying to access protected routes
-  if (!session && request.nextUrl.pathname.startsWith("/dashboard")) {
+  if (
+    !session &&
+    (request.nextUrl.pathname.startsWith("/dashboard") ||
+      request.nextUrl.pathname.startsWith("/game") ||
+      request.nextUrl.pathname.startsWith("/warrior-selection"))
+  ) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
   // If session and trying to access auth routes
   if (session && (request.nextUrl.pathname.startsWith("/login") || request.nextUrl.pathname.startsWith("/signup"))) {
-    return NextResponse.redirect(new URL("/dashboard", request.url))
+    // Check if user has a warrior
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (user?.user_metadata?.warrior) {
+      return NextResponse.redirect(new URL("/game", request.url))
+    } else {
+      return NextResponse.redirect(new URL("/warrior-selection", request.url))
+    }
+  }
+
+  // If session and accessing dashboard, redirect to game
+  if (session && request.nextUrl.pathname.startsWith("/dashboard")) {
+    // Check if user has a warrior
+    const {
+      data: { user },
+    } = await supabase.auth.getUser()
+
+    if (user?.user_metadata?.warrior) {
+      return NextResponse.redirect(new URL("/game", request.url))
+    } else {
+      return NextResponse.redirect(new URL("/warrior-selection", request.url))
+    }
   }
 
   return response
