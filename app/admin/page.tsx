@@ -6,17 +6,14 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, Sword, Award, AlertCircle } from "lucide-react"
+import { Loader2, Sword, Award, AlertCircle, Eye } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
-import { useWeb3 } from "@/lib/web3-context"
-import WalletConnect from "@/components/wallet-connect"
 
 export default function AdminPage() {
   const router = useRouter()
   const supabase = createClientComponentClient()
-  const { isConnected, finalizeBattle } = useWeb3()
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -160,7 +157,7 @@ export default function AdminPage() {
             challenger_warrior_id: "preview-challenger-warrior-1",
             opponent_id: "preview-opponent-1",
             opponent_warrior_id: "preview-opponent-warrior-1",
-            stake_amount: 0.05,
+            stake_amount: 100,
             status: "completed",
             winner: "challenger",
             challenger_health: 65,
@@ -240,7 +237,7 @@ export default function AdminPage() {
             challenger_warrior_id: "preview-challenger-warrior-2",
             opponent_id: "preview-opponent-2",
             opponent_warrior_id: "preview-opponent-warrior-2",
-            stake_amount: 0.03,
+            stake_amount: 100,
             status: "in_progress",
             turns: [{ turn: 1 }],
             created_at: new Date().toISOString(),
@@ -275,7 +272,7 @@ export default function AdminPage() {
           challenger_warrior_id: "preview-challenger-warrior-1",
           opponent_id: "preview-opponent-1",
           opponent_warrior_id: "preview-opponent-warrior-1",
-          stake_amount: 0.05,
+          stake_amount: 100,
           status: "completed",
           winner: "challenger",
           challenger_health: 65,
@@ -308,7 +305,7 @@ export default function AdminPage() {
           challenger_warrior_id: "preview-challenger-warrior-2",
           opponent_id: "preview-opponent-2",
           opponent_warrior_id: "preview-opponent-warrior-2",
-          stake_amount: 0.03,
+          stake_amount: 100,
           status: "in_progress",
           turns: [{ turn: 1 }],
           created_at: new Date().toISOString(),
@@ -333,38 +330,14 @@ export default function AdminPage() {
     }
   }
 
-  const finalizeBattleHandler = async (battleId: string) => {
-    if (!isConnected) {
-      setError("Please connect your wallet first")
-      return
-    }
-
+  const finalizeBattle = async (battleId: string) => {
     setProcessingBattleId(battleId)
-    setError(null)
-
     try {
       // Get the battle details
       const battle = completedBattles.find((b) => b.id === battleId)
       if (!battle) throw new Error("Battle not found")
 
-      // Determine winner address
-      let winnerAddress = ""
-      if (battle.winner === "challenger") {
-        winnerAddress = battle.challenger.user_metadata.wallet_address
-      } else if (battle.winner === "opponent") {
-        winnerAddress = battle.opponent.user_metadata.wallet_address
-      } else {
-        throw new Error("No winner determined for this battle")
-      }
-
-      // Call smart contract to finalize battle
-      const contractSuccess = await finalizeBattle(battleId, winnerAddress)
-
-      if (!contractSuccess) {
-        throw new Error("Failed to finalize battle on blockchain")
-      }
-
-      // Update battle status in database
+      // Update battle status
       const { error: updateError } = await supabase
         .from("battles")
         .update({
@@ -393,6 +366,8 @@ export default function AdminPage() {
             losses: battle.opponent_warrior.losses + 1,
           })
           .eq("id", battle.opponent_warrior_id)
+
+        console.log(`Distributed ${battle.stake_amount * 2} ${battle.challenger_warrior.token_symbol} tokens to winner`)
       } else if (battle.winner === "opponent") {
         // Update opponent stats (winner)
         await supabase
@@ -410,6 +385,8 @@ export default function AdminPage() {
             losses: battle.challenger_warrior.losses + 1,
           })
           .eq("id", battle.challenger_warrior_id)
+
+        console.log(`Distributed ${battle.stake_amount * 2} ${battle.opponent_warrior.token_symbol} tokens to winner`)
       } else {
         // It's a draw, return stakes to both
         await supabase
@@ -425,16 +402,23 @@ export default function AdminPage() {
             token_balance: battle.opponent_warrior.token_balance + battle.stake_amount,
           })
           .eq("id", battle.opponent_warrior_id)
+
+        console.log(`Returned ${battle.stake_amount} tokens to each player due to draw`)
       }
 
       // Refresh the battles list
       await fetchBattles()
     } catch (err) {
       console.error("Error finalizing battle:", err)
-      setError(err instanceof Error ? err.message : "Failed to finalize battle")
+      setError("Failed to finalize battle")
     } finally {
       setProcessingBattleId(null)
     }
+  }
+
+  const viewBattleDetails = (battleId: string) => {
+    // In a real implementation, this would open a modal with battle details
+    console.log("Viewing battle details for:", battleId)
   }
 
   if (loading) {
@@ -460,9 +444,9 @@ export default function AdminPage() {
     <div className="min-h-screen bg-black text-white p-4">
       <div className="max-w-6xl mx-auto">
         <header className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-yellow-500 pb-4">
-          <h1 className="text-3xl font-bold text-yellow-400 pixel-font float">WARBIT ADMIN</h1>
+          <h1 className="text-3xl font-bold text-yellow-400 pixel-font">WARBIT ADMIN</h1>
           <div className="flex items-center gap-4">
-            <span className="text-green-400 pixel-font">Admin Panel</span>
+            <span className="text-green-400">Admin Panel</span>
             <Button
               variant="outline"
               size="sm"
@@ -482,16 +466,6 @@ export default function AdminPage() {
           </div>
         </header>
 
-        {!isConnected && (
-          <div className="mb-6 p-4 bg-gray-900 border-2 border-yellow-500 rounded-md">
-            <h2 className="text-yellow-400 pixel-font mb-2">CONNECT WALLET TO FINALIZE BATTLES</h2>
-            <p className="text-gray-400 mb-4 text-sm">
-              You need to connect your wallet to finalize battles and distribute rewards.
-            </p>
-            <WalletConnect />
-          </div>
-        )}
-
         <Tabs defaultValue="completed" className="space-y-8">
           <TabsList className="grid grid-cols-2 bg-gray-800 w-full max-w-md mx-auto">
             <TabsTrigger value="completed" className="data-[state=active]:bg-yellow-500 data-[state=active]:text-black">
@@ -508,7 +482,7 @@ export default function AdminPage() {
             <Card className="bg-gray-900 border-yellow-500">
               <CardHeader>
                 <CardTitle className="text-yellow-400">Completed Battles</CardTitle>
-                <CardDescription>Finalize battles and distribute rewards</CardDescription>
+                <CardDescription>View battle results and token distributions</CardDescription>
               </CardHeader>
               <CardContent>
                 {completedBattles.length === 0 ? (
@@ -557,7 +531,7 @@ export default function AdminPage() {
 
                             <div className="text-center">
                               <div className="bg-yellow-500 text-black font-bold px-3 py-1 rounded-md mb-1">
-                                {battle.stake_amount} ETH
+                                {battle.stake_amount} {battle.challenger_warrior.token_symbol}
                               </div>
                               <div className="text-xs text-gray-400">Stake Amount</div>
                             </div>
@@ -579,21 +553,11 @@ export default function AdminPage() {
                           </div>
 
                           <Button
-                            onClick={() => finalizeBattleHandler(battle.id)}
-                            className="w-full bg-green-500 hover:bg-green-600 text-black"
-                            disabled={processingBattleId === battle.id || !isConnected}
+                            onClick={() => viewBattleDetails(battle.id)}
+                            className="w-full bg-blue-500 hover:bg-blue-600 text-black"
                           >
-                            {processingBattleId === battle.id ? (
-                              <>
-                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                Processing...
-                              </>
-                            ) : (
-                              <>
-                                <Award className="mr-2 h-4 w-4" />
-                                Finalize Battle
-                              </>
-                            )}
+                            <Eye className="mr-2 h-4 w-4" />
+                            View Details
                           </Button>
                         </CardContent>
                       </Card>
@@ -633,7 +597,7 @@ export default function AdminPage() {
 
                             <div className="text-center">
                               <div className="bg-yellow-500 text-black font-bold px-3 py-1 rounded-md mb-1">
-                                {battle.stake_amount} ETH
+                                {battle.stake_amount} {battle.challenger_warrior.token_symbol}
                               </div>
                               <div className="text-xs text-gray-400">Stake Amount</div>
                             </div>

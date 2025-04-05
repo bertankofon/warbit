@@ -123,7 +123,7 @@ export default function ActiveBattles({ userId }: ActiveBattlesProps) {
           challenger_warrior_id: "preview-challenger-warrior-1",
           opponent_id: userId,
           opponent_warrior_id: "preview-opponent-warrior-1",
-          stake_amount: 0.05,
+          stake_amount: 100,
           status: "in_progress",
           turns: [],
           created_at: new Date().toISOString(),
@@ -198,7 +198,9 @@ export default function ActiveBattles({ userId }: ActiveBattlesProps) {
               </div>
 
               <div className="text-center">
-                <div className="bg-yellow-500 text-black font-bold px-3 py-1 pixel-font">{battle.stake_amount} ETH</div>
+                <div className="bg-yellow-500 text-black font-bold px-3 py-1 pixel-font">
+                  {battle.stake_amount} {battle.challenger_warrior.token_symbol}
+                </div>
                 <div className="text-xs text-gray-400 pixel-font">STAKE</div>
               </div>
 

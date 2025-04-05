@@ -7,9 +7,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import BattleGameModal from "@/components/battle-game-modal"
 import ElementalIcon from "./elemental-icon"
 import type { ElementType } from "@/components/elemental-warrior-selector"
-import { useWeb3 } from "@/lib/web3-context"
-import WalletConnect from "./wallet-connect"
-import { Button } from "@/components/ui/button"
+// Import the necessary functions
+import { spendTokens } from "@/lib/metal-api"
+import { logTokenTransaction } from "@/lib/battle-utils"
 
 interface BattleProposalsProps {
   userId: string
@@ -18,13 +18,11 @@ interface BattleProposalsProps {
 
 export default function BattleProposals({ userId, warriorId }: BattleProposalsProps) {
   const supabase = createClientComponentClient()
-  const { isConnected, acceptBattle, balance } = useWeb3()
   const [loading, setLoading] = useState(true)
   const [proposals, setProposals] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [activeBattle, setActiveBattle] = useState<any>(null)
   const [showBattleGame, setShowBattleGame] = useState(false)
-  const [processingProposalId, setProcessingProposalId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProposals()
@@ -93,30 +91,12 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
     }
   }
 
-  const handleAccept = async (proposalId: string, stakeAmount: number) => {
-    if (!isConnected) {
-      setError("Please connect your wallet first")
-      return
-    }
+  // Update the handleAccept function to actually spend tokens
+  // Replace the handleAccept function with this improved version:
 
-    // Check if user has enough balance
-    if (Number.parseFloat(balance) < stakeAmount) {
-      setError(`Insufficient balance. You have ${Number.parseFloat(balance).toFixed(4)} ETH`)
-      return
-    }
-
-    setProcessingProposalId(proposalId)
-    setError(null)
-
+  const handleAccept = async (proposalId: string) => {
     try {
-      // First, stake ETH for the battle
-      const stakeSuccess = await acceptBattle(proposalId, stakeAmount.toString())
-
-      if (!stakeSuccess) {
-        throw new Error("Failed to stake ETH for the battle")
-      }
-
-      // Get the proposal details
+      // First, get the proposal details
       const { data: proposal, error: proposalError } = await supabase
         .from("battle_proposals")
         .select("*")
@@ -124,6 +104,49 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
         .single()
 
       if (proposalError) throw proposalError
+
+      // Get the current user's session
+      const {
+        data: { session },
+      } = await supabase.auth.getSession()
+      if (!session) throw new Error("You must be logged in to accept a battle")
+
+      // Get opponent warrior data (your warrior)
+      const { data: opponentWarrior, error: opponentError } = await supabase
+        .from("warriors")
+        .select("*")
+        .eq("id", proposal.opponent_warrior_id)
+        .single()
+
+      if (opponentError) throw opponentError
+
+      // Get wallet address from user metadata
+      const walletAddress = session.user.user_metadata?.wallet_address
+      if (!walletAddress) {
+        throw new Error("Wallet address not found. Please update your profile.")
+      }
+
+      console.log("Spending tokens for battle acceptance:", proposal.stake_amount)
+      console.log("User token address:", opponentWarrior.token_address)
+
+      // Call Metal API to spend tokens
+      try {
+        const spendResult = await spendTokens(session.user.id, {
+          tokenAddress: opponentWarrior.token_address,
+          amount: proposal.stake_amount,
+        })
+
+        if (!spendResult.success) {
+          throw new Error("Failed to spend tokens. Please check your balance.")
+        }
+
+        console.log("Tokens spent successfully:", spendResult)
+      } catch (spendError) {
+        console.error("Error spending tokens:", spendError)
+        throw new Error(
+          `Failed to spend tokens: ${spendError instanceof Error ? spendError.message : String(spendError)}`,
+        )
+      }
 
       // Update proposal status to accepted
       const { error: updateError } = await supabase
@@ -142,33 +165,42 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
 
       if (challengerError) throw challengerError
 
-      // Get opponent warrior data
-      const { data: opponentWarrior, error: opponentError } = await supabase
-        .from("warriors")
-        .select("*")
-        .eq("id", proposal.opponent_warrior_id)
-        .single()
-
-      if (opponentError) throw opponentError
-
       // Create battle record
-      const { data: battle, error: battleError } = await supabase
-        .from("battles")
-        .insert({
-          proposal_id: proposalId,
-          challenger_id: proposal.challenger_id,
-          challenger_warrior_id: proposal.challenger_warrior_id,
-          opponent_id: proposal.opponent_id,
-          opponent_warrior_id: proposal.opponent_warrior_id,
-          stake_amount: proposal.stake_amount,
-          status: "in_progress",
-          turns: [],
-          created_at: new Date().toISOString(),
-        })
-        .select()
-        .single()
+      const battleData = {
+        proposal_id: proposalId,
+        challenger_id: proposal.challenger_id,
+        challenger_warrior_id: proposal.challenger_warrior_id,
+        opponent_id: proposal.opponent_id,
+        opponent_warrior_id: proposal.opponent_warrior_id,
+        stake_amount: proposal.stake_amount,
+        stake_token_address: proposal.stake_token_address,
+        status: "in_progress",
+        turns: [],
+        created_at: new Date().toISOString(),
+      }
+
+      const { data: battle, error: battleError } = await supabase.from("battles").insert(battleData).select().single()
 
       if (battleError) throw battleError
+
+      // Log the token transaction
+      await logTokenTransaction({
+        battleId: battle.id,
+        fromUserId: session.user.id,
+        toUserId: "system", // Tokens are held by the system during the battle
+        tokenAddress: opponentWarrior.token_address,
+        tokenSymbol: opponentWarrior.token_symbol,
+        amount: proposal.stake_amount,
+        transactionType: "stake",
+      })
+
+      // Update warrior token balance in database
+      await supabase
+        .from("warriors")
+        .update({
+          token_balance: (opponentWarrior.token_balance || 0) - proposal.stake_amount,
+        })
+        .eq("id", opponentWarrior.id)
 
       // Construct the complete battle object with related data
       const completeBattle = {
@@ -193,9 +225,7 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
       setProposals(proposals.filter((p) => p.id !== proposalId))
     } catch (err) {
       console.error("Error accepting battle:", err)
-      setError(err instanceof Error ? err.message : "Failed to accept battle")
-    } finally {
-      setProcessingProposalId(null)
+      setError("Failed to accept battle: " + (err instanceof Error ? err.message : String(err)))
     }
   }
 
@@ -237,13 +267,6 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
 
   return (
     <div className="space-y-4">
-      {!isConnected && (
-        <div className="mb-4 p-4 bg-gray-800 rounded-md">
-          <p className="text-yellow-400 mb-2 pixel-font">CONNECT WALLET TO ACCEPT BATTLES</p>
-          <WalletConnect />
-        </div>
-      )}
-
       {proposals.map((proposal) => (
         <div key={proposal.id} className="pixel-border bg-gray-900">
           <div className="bg-black p-4">
@@ -276,7 +299,7 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
 
               <div className="text-center">
                 <div className="bg-yellow-500 text-black font-bold px-3 py-1 pixel-font">
-                  {proposal.stake_amount} ETH
+                  {proposal.stake_amount} {proposal.challenger_warrior?.token_symbol}
                 </div>
                 <div className="text-xs text-gray-400 pixel-font">STAKE</div>
               </div>
@@ -301,30 +324,17 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
             </div>
 
             <div className="flex gap-2">
-              <Button
+              <button
                 onClick={() => handleDecline(proposal.id)}
                 className="flex-1 border-2 border-red-500 text-red-400 hover:bg-red-900/30 p-2 pixel-font"
               >
                 <Shield className="h-4 w-4 mr-2 inline-block" />
                 DECLINE
-              </Button>
-              <Button
-                onClick={() => handleAccept(proposal.id, proposal.stake_amount)}
-                className="flex-1 pixel-button pixel-button-green"
-                disabled={!isConnected || processingProposalId === proposal.id}
-              >
-                {processingProposalId === proposal.id ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 inline-block animate-spin" />
-                    PROCESSING...
-                  </>
-                ) : (
-                  <>
-                    <Sword className="h-4 w-4 mr-2 inline-block" />
-                    ACCEPT
-                  </>
-                )}
-              </Button>
+              </button>
+              <button onClick={() => handleAccept(proposal.id)} className="flex-1 pixel-button pixel-button-green">
+                <Sword className="h-4 w-4 mr-2 inline-block" />
+                ACCEPT
+              </button>
             </div>
           </div>
         </div>

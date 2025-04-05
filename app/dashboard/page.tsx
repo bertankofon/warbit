@@ -10,7 +10,9 @@ import BattleProposals from "@/components/battle-proposals"
 import { checkDatabaseSetup } from "@/lib/database-setup"
 import { getAllTokens } from "@/lib/metal-api"
 import ActiveBattles from "@/components/active-battles"
-import WalletConnect from "@/components/wallet-connect"
+
+// Import the new migration functions
+import { setupTokenTransactionsTable, addTokenAddressColumns } from "@/lib/db-migrations-token"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -44,6 +46,10 @@ export default function Dashboard() {
 
         // Check if we can access the warriors table
         const dbStatus = await checkDatabaseSetup()
+
+        // Run token-related migrations
+        await setupTokenTransactionsTable()
+        await addTokenAddressColumns()
 
         if (!dbStatus.success) {
           setIsPreviewMode(dbStatus.isPreviewMode)
@@ -255,12 +261,6 @@ export default function Dashboard() {
             </button>
           </div>
         </header>
-
-        <div className="mb-6 p-4 bg-gray-900 border-2 border-yellow-500 rounded-md">
-          <h2 className="text-yellow-400 pixel-font mb-2">WALLET CONNECTION</h2>
-          <p className="text-gray-400 mb-4 text-sm">Connect your wallet to stake ETH for battles.</p>
-          <WalletConnect />
-        </div>
 
         {isPreviewMode && previewMessage && (
           <div className="pixel-border bg-gray-900 mb-6">

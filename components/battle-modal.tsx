@@ -19,8 +19,10 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import ElementalIcon from "./elemental-icon"
 import type { ElementType } from "@/components/elemental-warrior-selector"
-import { useWeb3 } from "@/lib/web3-context"
-import WalletConnect from "./wallet-connect"
+
+// Import the necessary functions
+import { spendTokens } from "@/lib/metal-api"
+import { logTokenTransaction } from "@/lib/battle-utils"
 
 interface BattleModalProps {
   opponent: any
@@ -30,44 +32,23 @@ interface BattleModalProps {
 
 export default function BattleModal({ opponent, myWarrior, onClose }: BattleModalProps) {
   const supabase = createClientComponentClient()
-  const { isConnected, address, balance, stakeBattle } = useWeb3()
-  const [stakeAmount, setStakeAmount] = useState<string>("0.01")
+  const [stakeAmount, setStakeAmount] = useState<string>("100")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
-  const [transactionHash, setTransactionHash] = useState<string | null>(null)
 
   const handleStakeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    // Only allow numbers and decimals
-    const value = e.target.value.replace(/[^0-9.]/g, "")
+    // Only allow whole numbers for tokens
+    const value = e.target.value.replace(/[^0-9]/g, "")
     setStakeAmount(value)
   }
 
+  // Update the handleProposeBattle function to actually spend tokens
+  // Replace the handleProposeBattle function with this improved version:
+
   const handleProposeBattle = async () => {
-    if (!stakeAmount || Number.parseFloat(stakeAmount) <= 0) {
+    if (!stakeAmount || Number.parseInt(stakeAmount) <= 0) {
       setError("Please enter a valid stake amount")
-      return
-    }
-
-    if (!isConnected) {
-      setError("Please connect your wallet first")
-      return
-    }
-
-    // Check if user has enough balance
-    if (Number.parseFloat(balance) < Number.parseFloat(stakeAmount)) {
-      setError(`Insufficient balance. You have ${Number.parseFloat(balance).toFixed(4)} ETH`)
-      return
-    }
-
-    // Check if we're in preview mode
-    const isPreviewMode = process.env.NODE_ENV === "development" && !supabase.auth.admin
-    if (isPreviewMode) {
-      console.log("Running in preview mode, using simulated battle proposal")
-
-      // Simulate a successful battle proposal
-      setSuccess(true)
-      setLoading(false)
       return
     }
 
@@ -84,97 +65,79 @@ export default function BattleModal({ opponent, myWarrior, onClose }: BattleModa
         throw new Error("You must be logged in to propose a battle")
       }
 
-      // Get opponent's wallet address
-      let opponentAddress = "0x0000000000000000000000000000000000000000" // Default fallback address
-
-      try {
-        const { data: opponentUser } = await supabase.auth.admin.getUserById(opponent.user_id)
-
-        // Check if we got valid data
-        if (
-          opponentUser &&
-          opponentUser.user &&
-          opponentUser.user.user_metadata &&
-          opponentUser.user.user_metadata.wallet_address
-        ) {
-          opponentAddress = opponentUser.user.user_metadata.wallet_address
-        } else {
-          console.log("Opponent wallet address not found in user metadata, using fallback")
-
-          // Try to get the address from the opponent object directly if available
-          if (opponent.wallet_address) {
-            opponentAddress = opponent.wallet_address
-          } else {
-            // In preview mode, we'll use a mock address
-            console.log("Using mock address for preview mode")
-          }
-        }
-      } catch (error) {
-        console.error("Error fetching opponent user data:", error)
-        console.log("Using fallback address for preview mode")
+      // Get wallet address from user metadata
+      const walletAddress = session.user.user_metadata?.wallet_address
+      if (!walletAddress) {
+        throw new Error("Wallet address not found. Please update your profile.")
       }
 
-      // Create battle proposal in database
-      const { data: proposalData, error: proposalError } = await supabase
-        .from("battle_proposals")
-        .insert({
-          challenger_id: session.user.id,
-          challenger_warrior_id: myWarrior.id,
-          opponent_id: opponent.user_id,
-          opponent_warrior_id: opponent.id,
-          stake_amount: Number.parseFloat(stakeAmount),
-          status: "pending",
-          created_at: new Date().toISOString(),
+      const stakeAmountNum = Number.parseInt(stakeAmount)
+
+      console.log("Spending tokens for battle proposal:", stakeAmountNum)
+      console.log("User token address:", myWarrior.token_address)
+
+      // Call Metal API to spend tokens
+      try {
+        const spendResult = await spendTokens(session.user.id, {
+          tokenAddress: myWarrior.token_address,
+          amount: stakeAmountNum,
         })
+
+        if (!spendResult.success) {
+          throw new Error("Failed to spend tokens. Please check your balance.")
+        }
+
+        console.log("Tokens spent successfully:", spendResult)
+      } catch (spendError) {
+        console.error("Error spending tokens:", spendError)
+        throw new Error(
+          `Failed to spend tokens: ${spendError instanceof Error ? spendError.message : String(spendError)}`,
+        )
+      }
+
+      // Create battle proposal
+      const proposalData = {
+        challenger_id: session.user.id,
+        challenger_warrior_id: myWarrior.id,
+        opponent_id: opponent.user_id,
+        opponent_warrior_id: opponent.id,
+        stake_amount: stakeAmountNum,
+        stake_token_address: myWarrior.token_address,
+        status: "pending",
+        created_at: new Date().toISOString(),
+      }
+
+      const { data: proposal, error: proposalError } = await supabase
+        .from("battle_proposals")
+        .insert(proposalData)
         .select()
         .single()
 
       if (proposalError) throw proposalError
 
-      console.log("Battle proposal created:", proposalData)
+      // Log the token transaction
+      await logTokenTransaction({
+        battleId: proposal.id,
+        fromUserId: session.user.id,
+        toUserId: "system", // Tokens are held by the system during the battle
+        tokenAddress: myWarrior.token_address,
+        tokenSymbol: myWarrior.token_symbol,
+        amount: stakeAmountNum,
+        transactionType: "stake",
+      })
 
-      try {
-        // Get token addresses
-        const myTokenAddress = myWarrior.token_address
-        const opponentTokenAddress = opponent.token_address
+      // Update warrior token balance in database
+      await supabase
+        .from("warriors")
+        .update({
+          token_balance: (myWarrior.token_balance || 0) - stakeAmountNum,
+        })
+        .eq("id", myWarrior.id)
 
-        // Stake ETH for the battle
-        const success = await stakeBattle(
-          proposalData.id,
-          stakeAmount,
-          opponentAddress,
-          myTokenAddress,
-          opponentTokenAddress,
-        )
-
-        if (!success) {
-          // If staking fails, delete the proposal
-          await supabase.from("battle_proposals").delete().eq("id", proposalData.id)
-          throw new Error("Failed to stake ETH for the battle")
-        }
-
-        setSuccess(true)
-      } catch (stakeError) {
-        // If staking fails, delete the proposal
-        console.error("Staking error:", stakeError)
-        await supabase.from("battle_proposals").delete().eq("id", proposalData.id)
-        throw stakeError
-      }
+      setSuccess(true)
     } catch (err) {
       console.error("Error proposing battle:", err)
-
-      // Provide more specific error messages
-      if (err instanceof Error) {
-        if (err.message.includes("admin.getUserById")) {
-          setError("Unable to get opponent data. This may happen in preview mode.")
-        } else if (err.message.includes("wallet_address")) {
-          setError("Opponent wallet address not found. Make sure both users have wallet addresses set.")
-        } else {
-          setError(err.message)
-        }
-      } else {
-        setError("Failed to propose battle")
-      }
+      setError(err instanceof Error ? err.message : "Failed to propose battle")
     } finally {
       setLoading(false)
     }
@@ -225,15 +188,9 @@ export default function BattleModal({ opponent, myWarrior, onClose }: BattleModa
 
           {!success ? (
             <div className="space-y-4">
-              {!isConnected && (
-                <div className="mb-4">
-                  <WalletConnect />
-                </div>
-              )}
-
               <div className="space-y-2">
                 <Label htmlFor="stakeAmount" className="text-white">
-                  Stake Amount (ETH)
+                  Stake Amount ({myWarrior.token_symbol} Tokens)
                 </Label>
                 <Input
                   id="stakeAmount"
@@ -241,15 +198,12 @@ export default function BattleModal({ opponent, myWarrior, onClose }: BattleModa
                   value={stakeAmount}
                   onChange={handleStakeChange}
                   className="bg-gray-800 border-gray-700 text-white"
-                  placeholder="0.01"
+                  placeholder="100"
                 />
                 <p className="text-xs text-gray-400">
-                  This amount will be staked for the battle. If you win, your warrior's token will receive liquidity
-                  with this ETH.
+                  This amount of your {myWarrior.token_symbol} tokens will be staked for the battle. If you win, you'll
+                  receive your tokens back plus the opponent's tokens.
                 </p>
-                {isConnected && (
-                  <p className="text-xs text-green-400">Your balance: {Number.parseFloat(balance).toFixed(4)} ETH</p>
-                )}
               </div>
 
               {error && (
@@ -265,12 +219,6 @@ export default function BattleModal({ opponent, myWarrior, onClose }: BattleModa
               <p className="text-gray-300 text-sm mt-2">
                 Your battle challenge has been sent to {opponent.name}. You'll be notified when they respond.
               </p>
-              {transactionHash && (
-                <p className="text-xs text-gray-400 mt-2">
-                  Transaction: {transactionHash.substring(0, 10)}...
-                  {transactionHash.substring(transactionHash.length - 8)}
-                </p>
-              )}
             </div>
           )}
         </div>
@@ -284,7 +232,7 @@ export default function BattleModal({ opponent, myWarrior, onClose }: BattleModa
               <Button
                 onClick={handleProposeBattle}
                 className="flex-1 bg-yellow-500 hover:bg-yellow-600 text-black"
-                disabled={loading || !isConnected}
+                disabled={loading}
               >
                 {loading ? (
                   <>

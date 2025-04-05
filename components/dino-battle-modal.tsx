@@ -11,11 +11,12 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Loader2, AlertCircle, Trophy } from "lucide-react"
+import { Loader2, AlertCircle, Trophy, Coins } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import DinoGame from "./dino-game"
 import ElementalIcon from "./elemental-icon"
 import type { ElementType } from "@/components/elemental-warrior-selector"
+import { autoDistributeTokens } from "@/lib/battle-utils"
 
 interface DinoBattleModalProps {
   battle: any
@@ -39,6 +40,8 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
   const [waitingForOpponent, setWaitingForOpponent] = useState(false)
   const [gamePhase, setGamePhase] = useState<"waiting" | "playing" | "results">("waiting")
   const [debugInfo, setDebugInfo] = useState<any>({})
+  const [tokenDistribution, setTokenDistribution] = useState<any>(null)
+  const [distributingTokens, setDistributingTokens] = useState(false)
 
   // Get the element type for the current player
   const getMyElementType = (): ElementType => {
@@ -98,10 +101,11 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
       if (currentBattle.turns && currentBattle.turns.length > 0) {
         processTurns(currentBattle.turns, userIsChallenger)
       } else {
-        setCurrentTurn("challenger")
-        setMyTurn(userIsChallenger)
-        setGamePhase(userIsChallenger ? "playing" : "waiting")
-        setWaitingForOpponent(!userIsChallenger)
+        // Opponent goes first
+        setCurrentTurn("opponent")
+        setMyTurn(!userIsChallenger)
+        setGamePhase(!userIsChallenger ? "playing" : "waiting")
+        setWaitingForOpponent(userIsChallenger)
       }
     } catch (err) {
       console.error("Error fetching battle state:", err)
@@ -195,6 +199,9 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
 
         // Update battle status
         await updateBattleStatus(battleWinner)
+
+        // Automatically distribute tokens to winner
+        await distributeTokens(battleWinner)
       } else {
         // Switch turns
         setWaitingForOpponent(true)
@@ -210,10 +217,11 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
 
   const processTurns = (turns: any[], isUserChallenger: boolean) => {
     if (!turns || turns.length === 0) {
-      setCurrentTurn("challenger")
-      setMyTurn(isUserChallenger)
-      setGamePhase(isUserChallenger ? "playing" : "waiting")
-      setWaitingForOpponent(!isUserChallenger)
+      // Opponent goes first
+      setCurrentTurn("opponent")
+      setMyTurn(!isUserChallenger)
+      setGamePhase(!isUserChallenger ? "playing" : "waiting")
+      setWaitingForOpponent(isUserChallenger)
       return
     }
 
@@ -266,18 +274,18 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
       } else {
         setWinner("draw")
       }
-    } else if (!challengerPlayed) {
-      // Challenger needs to play
-      setCurrentTurn("challenger")
-      setMyTurn(isUserChallenger)
-      setGamePhase(isUserChallenger ? "playing" : "waiting")
-      setWaitingForOpponent(!isUserChallenger)
     } else if (!opponentPlayed) {
-      // Opponent needs to play
+      // Opponent plays first
       setCurrentTurn("opponent")
       setMyTurn(!isUserChallenger)
       setGamePhase(!isUserChallenger ? "playing" : "waiting")
       setWaitingForOpponent(isUserChallenger)
+    } else if (!challengerPlayed) {
+      // Then challenger plays
+      setCurrentTurn("challenger")
+      setMyTurn(isUserChallenger)
+      setGamePhase(isUserChallenger ? "playing" : "waiting")
+      setWaitingForOpponent(!isUserChallenger)
     }
   }
 
@@ -295,6 +303,41 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
         .eq("id", battle.id)
     } catch (err) {
       console.error("Error updating battle status:", err)
+    }
+  }
+
+  const distributeTokens = async (battleWinner: "challenger" | "opponent" | "draw") => {
+    setDistributingTokens(true)
+    setError(null) // Clear any previous errors
+
+    try {
+      console.log(`Starting token distribution for battle ${battle.id}, winner: ${battleWinner}`)
+
+      // Call the autoDistributeTokens function to handle token distribution
+      const result = await autoDistributeTokens(battle.id)
+
+      if (result.success) {
+        setTokenDistribution(result)
+        console.log("Tokens distributed successfully:", result)
+      } else {
+        console.error("Error distributing tokens:", result.error)
+        setError(`Failed to distribute tokens: ${result.error}`)
+
+        // Show error but don't block the UI completely
+        setTimeout(() => {
+          setError(null)
+        }, 5000)
+      }
+    } catch (err) {
+      console.error("Error in distributeTokens:", err)
+      setError(`Failed to distribute tokens: ${err instanceof Error ? err.message : String(err)}`)
+
+      // Show error but don't block the UI completely
+      setTimeout(() => {
+        setError(null)
+      }, 5000)
+    } finally {
+      setDistributingTokens(false)
     }
   }
 
@@ -327,7 +370,9 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
             </div>
 
             <div className="text-center">
-              <div className="bg-yellow-500 text-black font-bold px-3 py-1 pixel-font">{battle.stake_amount} ETH</div>
+              <div className="bg-yellow-500 text-black font-bold px-3 py-1 pixel-font">
+                {battle.stake_amount} {battle.challenger_warrior.token_symbol}
+              </div>
               <div className="text-xs text-gray-400 pixel-font">STAKE</div>
             </div>
 
@@ -412,6 +457,34 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
                   {!isChallenger ? "YOUR SCORE: " : "OPPONENT SCORE: "}
                   {opponentScore}
                 </div>
+
+                {/* Token distribution result */}
+                {tokenDistribution && (
+                  <div className="mt-4 bg-yellow-500/20 border border-yellow-500 p-2 rounded-md">
+                    <div className="flex items-center justify-center mb-1">
+                      <Coins className="h-4 w-4 text-yellow-400 mr-1" />
+                      <span className="text-yellow-400 pixel-font text-sm">TOKENS DISTRIBUTED</span>
+                    </div>
+                    {tokenDistribution.winner === "draw" ? (
+                      <div className="text-white text-xs">
+                        Draw! {tokenDistribution.tokenAmount} tokens returned to each player.
+                      </div>
+                    ) : (
+                      <div className="text-white text-xs">
+                        {tokenDistribution.winnerName} received {tokenDistribution.tokenAmount}{" "}
+                        {tokenDistribution.tokenSymbol} tokens!
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {distributingTokens && (
+                  <div className="mt-4 flex items-center justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin text-yellow-500 mr-2" />
+                    <span className="text-yellow-400 text-xs">Distributing tokens...</span>
+                  </div>
+                )}
+
                 {process.env.NODE_ENV === "development" && (
                   <div className="mt-4 text-xs text-gray-500">
                     <div>Debug Info:</div>
@@ -419,6 +492,7 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
                     <div>Opponent Score: {opponentScore}</div>
                     <div>Winner: {winner}</div>
                     <div>Turns: {JSON.stringify(debugInfo.turns)}</div>
+                    <div>Token Distribution: {JSON.stringify(tokenDistribution)}</div>
                   </div>
                 )}
               </div>
