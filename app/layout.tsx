@@ -7,6 +7,9 @@ export const metadata: Metadata = {
   title: "Warbit - 8-Bit Warrior Token Game",
   description: "Create warriors, battle opponents, and earn tokens in this 8-bit style game.",
   generator: "v0.dev",
+  icons: {
+    icon: "/favicon.ico",
+  },
 }
 
 export default function RootLayout({

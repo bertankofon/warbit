@@ -204,6 +204,9 @@ img {
   50% {
     transform: translateY(-10px);
   }
+  100% {
+    transform: translateY(0);
+  }
 }
 
 .bounce {
@@ -737,6 +740,11 @@ img {
   text-shadow: 1px 1px 0 white;
 }
 
+/* Add this after the elemental icon styles */
+.elemental-icon.after\:hidden::after {
+  display: none;
+}
+
 /* Rock Paper Scissors icons */
 .rps-icon {
   width: 100%;
@@ -791,32 +799,34 @@ img {
   left: 20%;
 }
 
+/* Update the scissors icon styling */
 .rps-scissors {
   position: relative;
   background-color: #f55;
-  clip-path: polygon(0% 50%, 40% 40%, 50% 0%, 60% 40%, 100% 50%, 60% 60%, 50% 100%, 40% 60%);
+  /* Replace the existing clip-path with a better scissors shape */
+  clip-path: polygon(30% 0%, 70% 0%, 100% 30%, 70% 50%, 100% 70%, 70% 100%, 30% 100%, 0% 70%, 30% 50%, 0% 30%);
 }
 
 .rps-scissors::before {
   content: "";
   position: absolute;
-  width: 30%;
-  height: 30%;
+  width: 20%;
+  height: 20%;
   background-color: #fff;
   border-radius: 50%;
-  top: 35%;
-  left: 20%;
+  top: 30%;
+  left: 25%;
 }
 
 .rps-scissors::after {
   content: "";
   position: absolute;
-  width: 30%;
-  height: 30%;
+  width: 20%;
+  height: 20%;
   background-color: #fff;
   border-radius: 50%;
-  top: 35%;
-  left: 50%;
+  top: 30%;
+  left: 55%;
 }
 
 /* RPS animations */
@@ -872,5 +882,59 @@ img {
 
 .animate-rps-draw {
   animation: rps-draw 1s ease-in-out;
+}
+
+/* Add these styles to the end of your globals.css file */
+
+/* Pixel art style for game elements */
+.pixel-art {
+  image-rendering: pixelated;
+  image-rendering: -moz-crisp-edges;
+  image-rendering: crisp-edges;
+}
+
+/* Dino game animations */
+@keyframes dino-run {
+  0% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+  100% {
+    transform: translateY(0);
+  }
+}
+
+.dino-running {
+  animation: dino-run 0.2s infinite;
+}
+
+@keyframes obstacle-move {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-100%);
+  }
+}
+
+.obstacle-moving {
+  animation: obstacle-move var(--move-duration, 2s) linear forwards;
+}
+
+/* Game over flash animation */
+@keyframes game-over-flash {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.5;
+  }
+}
+
+.game-over-flash {
+  animation: game-over-flash 0.5s 3;
 }
 

@@ -19,7 +19,7 @@ export default function Home() {
               <div className="grid grid-cols-4 gap-3 max-w-md mx-auto">
                 {["fire", "water", "earth", "air"].map((element) => (
                   <div key={element} className="flex flex-col items-center">
-                    <div className={`elemental-icon w-16 h-16 element-${element}`}></div>
+                    <div className={`elemental-icon w-16 h-16 element-${element} after:hidden`}></div>
                     <p className="mt-2 text-xs text-white pixel-font uppercase">{element}</p>
                   </div>
                 ))}

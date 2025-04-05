@@ -47,6 +47,9 @@ export default function RPSBattleGame({ battle, onClose }: RPSBattleGameProps) {
   const [showAnimation, setShowAnimation] = useState(false)
   const [animationClass, setAnimationClass] = useState("")
 
+  // Add a new state for the selected move before it's confirmed
+  const [selectedMove, setSelectedMove] = useState<RPSMove>(null)
+
   // Set up real-time subscription
   useEffect(() => {
     const checkUser = async () => {
@@ -180,8 +183,23 @@ export default function RPSBattleGame({ battle, onClose }: RPSBattleGameProps) {
     }
   }
 
+  // Modify the handleMove function to be a two-step process
   const handleMove = async (move: RPSMove) => {
     if (loading || gameOver) return
+
+    // If we already have a move selected and the user clicks the same move, deselect it
+    if (selectedMove === move) {
+      setSelectedMove(null)
+      return
+    }
+
+    // Just select the move, don't submit it yet
+    setSelectedMove(move)
+  }
+
+  // Add a new function to confirm and submit the move
+  const confirmMove = async () => {
+    if (!selectedMove || loading || gameOver) return
 
     setLoading(true)
 
@@ -206,24 +224,24 @@ export default function RPSBattleGame({ battle, onClose }: RPSBattleGameProps) {
         // I'm the challenger
         if (lastTurn && !lastTurn.challenger_move && lastTurn.opponent_move) {
           // Complete this turn
-          lastTurn.challenger_move = move
+          lastTurn.challenger_move = selectedMove
           updatedTurns[updatedTurns.length - 1] = lastTurn
           completingTurn = true
         } else {
           // Start a new turn
           updatedTurns.push({
             round: round,
-            challenger_move: move,
+            challenger_move: selectedMove,
             opponent_move: null,
             timestamp: new Date().toISOString(),
           })
         }
-        setChallengerMove(move)
+        setChallengerMove(selectedMove)
       } else {
         // I'm the opponent
         if (lastTurn && lastTurn.challenger_move && !lastTurn.opponent_move) {
           // Complete this turn
-          lastTurn.opponent_move = move
+          lastTurn.opponent_move = selectedMove
           updatedTurns[updatedTurns.length - 1] = lastTurn
           completingTurn = true
         } else {
@@ -231,11 +249,11 @@ export default function RPSBattleGame({ battle, onClose }: RPSBattleGameProps) {
           updatedTurns.push({
             round: round,
             challenger_move: null,
-            opponent_move: move,
+            opponent_move: selectedMove,
             timestamp: new Date().toISOString(),
           })
         }
-        setOpponentMove(move)
+        setOpponentMove(selectedMove)
       }
 
       // Update battle with new turns
@@ -295,15 +313,18 @@ export default function RPSBattleGame({ battle, onClose }: RPSBattleGameProps) {
             setShowMoves(false)
             setShowAnimation(false)
             setWaitingForOpponent(false)
+            setSelectedMove(null)
           }, 3000)
         }
       } else {
         // We started a new turn, so we're waiting for the opponent
         setWaitingForOpponent(true)
+        setSelectedMove(null)
       }
     } catch (err) {
       console.error("Error making move:", err)
       setError("Failed to make move")
+      setSelectedMove(null)
     } finally {
       setLoading(false)
     }
@@ -326,16 +347,18 @@ export default function RPSBattleGame({ battle, onClose }: RPSBattleGameProps) {
     }
   }
 
+  // Update the renderMoveButton function to handle selection
   const renderMoveButton = (move: RPSMove) => {
     const isDisabled =
       loading || gameOver || waitingForOpponent || (isChallenger ? challengerMove !== null : opponentMove !== null)
+    const isSelected = selectedMove === move
 
     return (
       <Button
         onClick={() => handleMove(move)}
         disabled={isDisabled}
         className={`relative h-24 w-24 bg-gray-800 border-2 ${
-          (isChallenger ? challengerMove : opponentMove) === move ? "border-yellow-500" : "border-gray-700"
+          isSelected ? "border-yellow-500" : "border-gray-700"
         } hover:bg-gray-700 hover:border-yellow-400 transition-all`}
       >
         <div className={`rps-icon rps-${move}`}></div>
@@ -470,7 +493,11 @@ export default function RPSBattleGame({ battle, onClose }: RPSBattleGameProps) {
           {!gameOver && (
             <div className="space-y-2">
               <h3 className="font-bold text-center pixel-font">
-                {waitingForOpponent ? "WAITING FOR OPPONENT..." : "CHOOSE YOUR MOVE"}
+                {waitingForOpponent
+                  ? "WAITING FOR OPPONENT..."
+                  : selectedMove
+                    ? "CONFIRM YOUR MOVE"
+                    : "CHOOSE YOUR MOVE"}
               </h3>
 
               {error && (
@@ -485,6 +512,17 @@ export default function RPSBattleGame({ battle, onClose }: RPSBattleGameProps) {
                 {renderMoveButton("paper")}
                 {renderMoveButton("scissors")}
               </div>
+
+              {selectedMove && !waitingForOpponent && (
+                <div className="flex justify-center mt-4">
+                  <Button
+                    onClick={confirmMove}
+                    className="bg-green-500 hover:bg-green-600 text-black font-bold pixel-font"
+                  >
+                    PLACE MOVE
+                  </Button>
+                </div>
+              )}
 
               {waitingForOpponent && (
                 <div className="flex justify-center mt-4">
