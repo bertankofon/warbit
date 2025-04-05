@@ -25,12 +25,14 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
       type: "cactus" | "rock" | "crystal" | "cloud"
     }[]
   >([])
+  const [showDebug, setShowDebug] = useState(false)
 
   const gameLoopRef = useRef<number | null>(null)
   const frameCountRef = useRef(0)
   const scoreIntervalRef = useRef<NodeJS.Timeout | null>(null)
   const gameSpeedRef = useRef(5)
   const gameAreaRef = useRef<HTMLDivElement>(null)
+  const gameOverRef = useRef(false)
 
   // Game constants
   const GROUND_HEIGHT = 20
@@ -77,6 +79,7 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
 
     setGameStarted(true)
     setGameOver(false)
+    gameOverRef.current = false
     setScore(0)
     setObstacles([])
     frameCountRef.current = 0
@@ -87,7 +90,7 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
 
     // Start scoring
     scoreIntervalRef.current = setInterval(() => {
-      if (!gameOver) {
+      if (!gameOverRef.current) {
         setScore((prev) => prev + 1)
       }
     }, 100)
@@ -96,6 +99,7 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
   const resetGame = () => {
     setGameStarted(false)
     setGameOver(false)
+    gameOverRef.current = false
     setScore(0)
     setDinoY(0)
     setJumping(false)
@@ -110,7 +114,7 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
 
     let velocity = JUMP_FORCE
     const jumpInterval = setInterval(() => {
-      if (gameOver) {
+      if (gameOverRef.current) {
         clearInterval(jumpInterval)
         return
       }
@@ -144,37 +148,8 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
     return availableTypes[Math.floor(Math.random() * availableTypes.length)] as "cactus" | "rock" | "crystal" | "cloud"
   }
 
-  const checkCollision = () => {
-    const dinoHitbox = {
-      x: 50,
-      y: GROUND_HEIGHT + dinoY,
-      width: DINO_WIDTH - 15, // Smaller hitbox for better gameplay
-      height: DINO_HEIGHT - 15,
-    }
-
-    for (const obs of obstacles) {
-      // Adjust hitbox based on obstacle type
-      const obsY = obs.type === "cloud" ? GROUND_HEIGHT + 50 : GROUND_HEIGHT
-
-      // More precise collision detection
-      if (
-        dinoHitbox.x < obs.x + obs.width - 10 &&
-        dinoHitbox.x + dinoHitbox.width - 10 > obs.x &&
-        dinoHitbox.y < obsY + obs.height &&
-        dinoHitbox.y + dinoHitbox.height > obsY
-      ) {
-        return true
-      }
-    }
-
-    return false
-  }
-
   const gameLoop = () => {
-    if (gameOver) {
-      if (gameLoopRef.current) {
-        cancelAnimationFrame(gameLoopRef.current)
-      }
+    if (gameOverRef.current) {
       return
     }
 
@@ -229,36 +204,43 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
     }
 
     // Move obstacles and check for collisions
-    let collision = false
-
     setObstacles((prev) => {
       // Remove obstacles that are off screen
-      const filtered = prev.filter((obs) => obs.x > -obs.width)
-
-      // Move remaining obstacles
-      const updated = filtered.map((obs) => ({
-        ...obs,
-        x: obs.x - gameSpeedRef.current,
-      }))
+      const updated = prev
+        .filter((obs) => obs.x > -obs.width)
+        .map((obs) => ({
+          ...obs,
+          x: obs.x - gameSpeedRef.current,
+        }))
 
       // Check for collisions with each obstacle
       const dinoHitbox = {
         x: 50,
-        y: GROUND_HEIGHT + dinoY,
-        width: DINO_WIDTH - 15,
-        height: DINO_HEIGHT - 15,
+        y: GROUND_HEIGHT + dinoY, // This now correctly positions the hitbox based on jump height
+        width: DINO_WIDTH - 10,
+        height: DINO_HEIGHT - 10, // slightly adjusted for better collision detection
       }
 
       for (const obs of updated) {
         const obsY = obs.type === "cloud" ? GROUND_HEIGHT + 50 : GROUND_HEIGHT
 
         if (
-          dinoHitbox.x < obs.x + obs.width - 5 &&
-          dinoHitbox.x + dinoHitbox.width - 5 > obs.x &&
+          dinoHitbox.x < obs.x + obs.width &&
+          dinoHitbox.x + dinoHitbox.width > obs.x &&
           dinoHitbox.y < obsY + obs.height &&
           dinoHitbox.y + dinoHitbox.height > obsY
         ) {
-          collision = true
+          // Collision detected!
+          console.log("Collision detected! Game over.")
+
+          // We need to use the ref to prevent multiple endGame calls
+          if (!gameOverRef.current) {
+            gameOverRef.current = true
+
+            // We need to call endGame outside of this setState callback
+            // to avoid React state update warnings
+            setTimeout(() => endGame(), 0)
+          }
           break
         }
       }
@@ -266,22 +248,18 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
       return updated
     })
 
-    // If collision detected, end game immediately
-    if (collision) {
-      console.log("Collision detected! Game over.")
-      endGame()
-      return
+    // Continue game loop if not game over
+    if (!gameOverRef.current) {
+      gameLoopRef.current = requestAnimationFrame(gameLoop)
     }
-
-    // Continue game loop
-    gameLoopRef.current = requestAnimationFrame(gameLoop)
   }
 
   const endGame = () => {
     console.log("Game ending with score:", score)
 
-    // Set game over state immediately
+    // Set game over state
     setGameOver(true)
+    gameOverRef.current = true
 
     // Clear intervals
     if (scoreIntervalRef.current) {
@@ -421,7 +399,7 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
   }
 
   // Debug visualization for hitboxes (only in development)
-  const showDebugHitboxes = process.env.NODE_ENV === "development"
+  const showDebugHitboxes = process.env.NODE_ENV === "development" || showDebug
 
   return (
     <div ref={gameAreaRef} className="w-full h-64 bg-gray-900 border-2 border-gray-700 relative overflow-hidden">
@@ -453,8 +431,8 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
             style={{
               left: "50px",
               bottom: `${GROUND_HEIGHT + dinoY}px`,
-              width: `${DINO_WIDTH - 15}px`,
-              height: `${DINO_HEIGHT - 15}px`,
+              width: `${DINO_WIDTH - 10}px`,
+              height: `${DINO_HEIGHT - 10}px`,
             }}
           />
 
@@ -476,6 +454,14 @@ export default function DinoGame({ onGameOver, autoStart = false, elementType = 
 
       {/* Score */}
       <div className="absolute top-4 right-4 text-white pixel-font">SCORE: {score}</div>
+      <div className="absolute top-4 left-4">
+        <button
+          onClick={() => setShowDebug((prev) => !prev)}
+          className="bg-gray-800 text-xs text-gray-400 px-2 py-1 rounded"
+        >
+          {showDebug ? "Hide Debug" : "Show Debug"}
+        </button>
+      </div>
 
       {/* Game over screen */}
       {gameOver && (
