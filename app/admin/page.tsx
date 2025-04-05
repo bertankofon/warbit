@@ -10,10 +10,13 @@ import { Loader2, Sword, Award, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
+import { useWeb3 } from "@/lib/web3-context"
+import WalletConnect from "@/components/wallet-connect"
 
 export default function AdminPage() {
   const router = useRouter()
   const supabase = createClientComponentClient()
+  const { isConnected, finalizeBattle } = useWeb3()
   const [loading, setLoading] = useState(true)
   const [user, setUser] = useState<any>(null)
   const [isAdmin, setIsAdmin] = useState(false)
@@ -330,14 +333,38 @@ export default function AdminPage() {
     }
   }
 
-  const finalizeBattle = async (battleId: string) => {
+  const finalizeBattleHandler = async (battleId: string) => {
+    if (!isConnected) {
+      setError("Please connect your wallet first")
+      return
+    }
+
     setProcessingBattleId(battleId)
+    setError(null)
+
     try {
       // Get the battle details
       const battle = completedBattles.find((b) => b.id === battleId)
       if (!battle) throw new Error("Battle not found")
 
-      // Update battle status
+      // Determine winner address
+      let winnerAddress = ""
+      if (battle.winner === "challenger") {
+        winnerAddress = battle.challenger.user_metadata.wallet_address
+      } else if (battle.winner === "opponent") {
+        winnerAddress = battle.opponent.user_metadata.wallet_address
+      } else {
+        throw new Error("No winner determined for this battle")
+      }
+
+      // Call smart contract to finalize battle
+      const contractSuccess = await finalizeBattle(battleId, winnerAddress)
+
+      if (!contractSuccess) {
+        throw new Error("Failed to finalize battle on blockchain")
+      }
+
+      // Update battle status in database
       const { error: updateError } = await supabase
         .from("battles")
         .update({
@@ -404,7 +431,7 @@ export default function AdminPage() {
       await fetchBattles()
     } catch (err) {
       console.error("Error finalizing battle:", err)
-      setError("Failed to finalize battle")
+      setError(err instanceof Error ? err.message : "Failed to finalize battle")
     } finally {
       setProcessingBattleId(null)
     }
@@ -433,9 +460,9 @@ export default function AdminPage() {
     <div className="min-h-screen bg-black text-white p-4">
       <div className="max-w-6xl mx-auto">
         <header className="flex flex-col md:flex-row justify-between items-center mb-8 border-b border-yellow-500 pb-4">
-          <h1 className="text-3xl font-bold text-yellow-400 pixel-font">WARBIT ADMIN</h1>
+          <h1 className="text-3xl font-bold text-yellow-400 pixel-font float">WARBIT ADMIN</h1>
           <div className="flex items-center gap-4">
-            <span className="text-green-400">Admin Panel</span>
+            <span className="text-green-400 pixel-font">Admin Panel</span>
             <Button
               variant="outline"
               size="sm"
@@ -454,6 +481,16 @@ export default function AdminPage() {
             </Button>
           </div>
         </header>
+
+        {!isConnected && (
+          <div className="mb-6 p-4 bg-gray-900 border-2 border-yellow-500 rounded-md">
+            <h2 className="text-yellow-400 pixel-font mb-2">CONNECT WALLET TO FINALIZE BATTLES</h2>
+            <p className="text-gray-400 mb-4 text-sm">
+              You need to connect your wallet to finalize battles and distribute rewards.
+            </p>
+            <WalletConnect />
+          </div>
+        )}
 
         <Tabs defaultValue="completed" className="space-y-8">
           <TabsList className="grid grid-cols-2 bg-gray-800 w-full max-w-md mx-auto">
@@ -542,9 +579,9 @@ export default function AdminPage() {
                           </div>
 
                           <Button
-                            onClick={() => finalizeBattle(battle.id)}
+                            onClick={() => finalizeBattleHandler(battle.id)}
                             className="w-full bg-green-500 hover:bg-green-600 text-black"
-                            disabled={processingBattleId === battle.id}
+                            disabled={processingBattleId === battle.id || !isConnected}
                           >
                             {processingBattleId === battle.id ? (
                               <>

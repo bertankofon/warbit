@@ -7,6 +7,9 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import BattleGameModal from "@/components/battle-game-modal"
 import ElementalIcon from "./elemental-icon"
 import type { ElementType } from "@/components/elemental-warrior-selector"
+import { useWeb3 } from "@/lib/web3-context"
+import WalletConnect from "./wallet-connect"
+import { Button } from "@/components/ui/button"
 
 interface BattleProposalsProps {
   userId: string
@@ -15,11 +18,13 @@ interface BattleProposalsProps {
 
 export default function BattleProposals({ userId, warriorId }: BattleProposalsProps) {
   const supabase = createClientComponentClient()
+  const { isConnected, acceptBattle, balance } = useWeb3()
   const [loading, setLoading] = useState(true)
   const [proposals, setProposals] = useState<any[]>([])
   const [error, setError] = useState<string | null>(null)
   const [activeBattle, setActiveBattle] = useState<any>(null)
   const [showBattleGame, setShowBattleGame] = useState(false)
+  const [processingProposalId, setProcessingProposalId] = useState<string | null>(null)
 
   useEffect(() => {
     fetchProposals()
@@ -88,9 +93,30 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
     }
   }
 
-  const handleAccept = async (proposalId: string) => {
+  const handleAccept = async (proposalId: string, stakeAmount: number) => {
+    if (!isConnected) {
+      setError("Please connect your wallet first")
+      return
+    }
+
+    // Check if user has enough balance
+    if (Number.parseFloat(balance) < stakeAmount) {
+      setError(`Insufficient balance. You have ${Number.parseFloat(balance).toFixed(4)} ETH`)
+      return
+    }
+
+    setProcessingProposalId(proposalId)
+    setError(null)
+
     try {
-      // First, get the proposal details
+      // First, stake ETH for the battle
+      const stakeSuccess = await acceptBattle(proposalId, stakeAmount.toString())
+
+      if (!stakeSuccess) {
+        throw new Error("Failed to stake ETH for the battle")
+      }
+
+      // Get the proposal details
       const { data: proposal, error: proposalError } = await supabase
         .from("battle_proposals")
         .select("*")
@@ -167,7 +193,9 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
       setProposals(proposals.filter((p) => p.id !== proposalId))
     } catch (err) {
       console.error("Error accepting battle:", err)
-      setError("Failed to accept battle")
+      setError(err instanceof Error ? err.message : "Failed to accept battle")
+    } finally {
+      setProcessingProposalId(null)
     }
   }
 
@@ -209,6 +237,13 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
 
   return (
     <div className="space-y-4">
+      {!isConnected && (
+        <div className="mb-4 p-4 bg-gray-800 rounded-md">
+          <p className="text-yellow-400 mb-2 pixel-font">CONNECT WALLET TO ACCEPT BATTLES</p>
+          <WalletConnect />
+        </div>
+      )}
+
       {proposals.map((proposal) => (
         <div key={proposal.id} className="pixel-border bg-gray-900">
           <div className="bg-black p-4">
@@ -266,17 +301,30 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
             </div>
 
             <div className="flex gap-2">
-              <button
+              <Button
                 onClick={() => handleDecline(proposal.id)}
                 className="flex-1 border-2 border-red-500 text-red-400 hover:bg-red-900/30 p-2 pixel-font"
               >
                 <Shield className="h-4 w-4 mr-2 inline-block" />
                 DECLINE
-              </button>
-              <button onClick={() => handleAccept(proposal.id)} className="flex-1 pixel-button pixel-button-green">
-                <Sword className="h-4 w-4 mr-2 inline-block" />
-                ACCEPT
-              </button>
+              </Button>
+              <Button
+                onClick={() => handleAccept(proposal.id, proposal.stake_amount)}
+                className="flex-1 pixel-button pixel-button-green"
+                disabled={!isConnected || processingProposalId === proposal.id}
+              >
+                {processingProposalId === proposal.id ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 inline-block animate-spin" />
+                    PROCESSING...
+                  </>
+                ) : (
+                  <>
+                    <Sword className="h-4 w-4 mr-2 inline-block" />
+                    ACCEPT
+                  </>
+                )}
+              </Button>
             </div>
           </div>
         </div>
