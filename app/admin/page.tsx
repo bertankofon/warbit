@@ -6,7 +6,7 @@ import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Loader2, Sword, Award, AlertCircle, Eye } from "lucide-react"
+import { Loader2, Sword, Award, AlertCircle } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Progress } from "@/components/ui/progress"
@@ -157,7 +157,7 @@ export default function AdminPage() {
             challenger_warrior_id: "preview-challenger-warrior-1",
             opponent_id: "preview-opponent-1",
             opponent_warrior_id: "preview-opponent-warrior-1",
-            stake_amount: 100,
+            stake_amount: 0.05,
             status: "completed",
             winner: "challenger",
             challenger_health: 65,
@@ -237,7 +237,7 @@ export default function AdminPage() {
             challenger_warrior_id: "preview-challenger-warrior-2",
             opponent_id: "preview-opponent-2",
             opponent_warrior_id: "preview-opponent-warrior-2",
-            stake_amount: 100,
+            stake_amount: 0.03,
             status: "in_progress",
             turns: [{ turn: 1 }],
             created_at: new Date().toISOString(),
@@ -272,7 +272,7 @@ export default function AdminPage() {
           challenger_warrior_id: "preview-challenger-warrior-1",
           opponent_id: "preview-opponent-1",
           opponent_warrior_id: "preview-opponent-warrior-1",
-          stake_amount: 100,
+          stake_amount: 0.05,
           status: "completed",
           winner: "challenger",
           challenger_health: 65,
@@ -305,7 +305,7 @@ export default function AdminPage() {
           challenger_warrior_id: "preview-challenger-warrior-2",
           opponent_id: "preview-opponent-2",
           opponent_warrior_id: "preview-opponent-warrior-2",
-          stake_amount: 100,
+          stake_amount: 0.03,
           status: "in_progress",
           turns: [{ turn: 1 }],
           created_at: new Date().toISOString(),
@@ -366,8 +366,6 @@ export default function AdminPage() {
             losses: battle.opponent_warrior.losses + 1,
           })
           .eq("id", battle.opponent_warrior_id)
-
-        console.log(`Distributed ${battle.stake_amount * 2} ${battle.challenger_warrior.token_symbol} tokens to winner`)
       } else if (battle.winner === "opponent") {
         // Update opponent stats (winner)
         await supabase
@@ -385,8 +383,6 @@ export default function AdminPage() {
             losses: battle.challenger_warrior.losses + 1,
           })
           .eq("id", battle.challenger_warrior_id)
-
-        console.log(`Distributed ${battle.stake_amount * 2} ${battle.opponent_warrior.token_symbol} tokens to winner`)
       } else {
         // It's a draw, return stakes to both
         await supabase
@@ -402,8 +398,6 @@ export default function AdminPage() {
             token_balance: battle.opponent_warrior.token_balance + battle.stake_amount,
           })
           .eq("id", battle.opponent_warrior_id)
-
-        console.log(`Returned ${battle.stake_amount} tokens to each player due to draw`)
       }
 
       // Refresh the battles list
@@ -414,11 +408,6 @@ export default function AdminPage() {
     } finally {
       setProcessingBattleId(null)
     }
-  }
-
-  const viewBattleDetails = (battleId: string) => {
-    // In a real implementation, this would open a modal with battle details
-    console.log("Viewing battle details for:", battleId)
   }
 
   if (loading) {
@@ -482,7 +471,7 @@ export default function AdminPage() {
             <Card className="bg-gray-900 border-yellow-500">
               <CardHeader>
                 <CardTitle className="text-yellow-400">Completed Battles</CardTitle>
-                <CardDescription>View battle results and token distributions</CardDescription>
+                <CardDescription>Finalize battles and distribute rewards</CardDescription>
               </CardHeader>
               <CardContent>
                 {completedBattles.length === 0 ? (
@@ -531,7 +520,7 @@ export default function AdminPage() {
 
                             <div className="text-center">
                               <div className="bg-yellow-500 text-black font-bold px-3 py-1 rounded-md mb-1">
-                                {battle.stake_amount} {battle.challenger_warrior.token_symbol}
+                                {battle.stake_amount} ETH
                               </div>
                               <div className="text-xs text-gray-400">Stake Amount</div>
                             </div>
@@ -553,11 +542,21 @@ export default function AdminPage() {
                           </div>
 
                           <Button
-                            onClick={() => viewBattleDetails(battle.id)}
-                            className="w-full bg-blue-500 hover:bg-blue-600 text-black"
+                            onClick={() => finalizeBattle(battle.id)}
+                            className="w-full bg-green-500 hover:bg-green-600 text-black"
+                            disabled={processingBattleId === battle.id}
                           >
-                            <Eye className="mr-2 h-4 w-4" />
-                            View Details
+                            {processingBattleId === battle.id ? (
+                              <>
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                Processing...
+                              </>
+                            ) : (
+                              <>
+                                <Award className="mr-2 h-4 w-4" />
+                                Finalize Battle
+                              </>
+                            )}
                           </Button>
                         </CardContent>
                       </Card>
@@ -597,7 +596,7 @@ export default function AdminPage() {
 
                             <div className="text-center">
                               <div className="bg-yellow-500 text-black font-bold px-3 py-1 rounded-md mb-1">
-                                {battle.stake_amount} {battle.challenger_warrior.token_symbol}
+                                {battle.stake_amount} ETH
                               </div>
                               <div className="text-xs text-gray-400">Stake Amount</div>
                             </div>

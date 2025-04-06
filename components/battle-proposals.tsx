@@ -2,14 +2,12 @@
 
 import { useState, useEffect } from "react"
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
-import { Loader2, Sword, Shield, AlertCircle } from "lucide-react"
+import { Loader2, Sword, Shield, AlertCircle, Coins, Bird, Car } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import BattleGameModal from "@/components/battle-game-modal"
 import ElementalIcon from "./elemental-icon"
 import type { ElementType } from "@/components/elemental-warrior-selector"
-// Import the necessary functions
-import { spendTokens } from "@/lib/metal-api"
-import { logTokenTransaction } from "@/lib/battle-utils"
+import type { GameType } from "./battle-modal"
 
 interface BattleProposalsProps {
   userId: string
@@ -91,9 +89,6 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
     }
   }
 
-  // Update the handleAccept function to actually spend tokens
-  // Replace the handleAccept function with this improved version:
-
   const handleAccept = async (proposalId: string) => {
     try {
       // First, get the proposal details
@@ -105,13 +100,7 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
 
       if (proposalError) throw proposalError
 
-      // Get the current user's session
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      if (!session) throw new Error("You must be logged in to accept a battle")
-
-      // Get opponent warrior data (your warrior)
+      // Get opponent warrior data
       const { data: opponentWarrior, error: opponentError } = await supabase
         .from("warriors")
         .select("*")
@@ -119,34 +108,6 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
         .single()
 
       if (opponentError) throw opponentError
-
-      // Get wallet address from user metadata
-      const walletAddress = session.user.user_metadata?.wallet_address
-      if (!walletAddress) {
-        throw new Error("Wallet address not found. Please update your profile.")
-      }
-
-      console.log("Spending tokens for battle acceptance:", proposal.stake_amount)
-      console.log("User token address:", opponentWarrior.token_address)
-
-      // Call Metal API to spend tokens
-      try {
-        const spendResult = await spendTokens(session.user.id, {
-          tokenAddress: opponentWarrior.token_address,
-          amount: proposal.stake_amount,
-        })
-
-        if (!spendResult.success) {
-          throw new Error("Failed to spend tokens. Please check your balance.")
-        }
-
-        console.log("Tokens spent successfully:", spendResult)
-      } catch (spendError) {
-        console.error("Error spending tokens:", spendError)
-        throw new Error(
-          `Failed to spend tokens: ${spendError instanceof Error ? spendError.message : String(spendError)}`,
-        )
-      }
 
       // Update proposal status to accepted
       const { error: updateError } = await supabase
@@ -165,67 +126,114 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
 
       if (challengerError) throw challengerError
 
-      // Create battle record
-      const battleData = {
-        proposal_id: proposalId,
-        challenger_id: proposal.challenger_id,
-        challenger_warrior_id: proposal.challenger_warrior_id,
-        opponent_id: proposal.opponent_id,
-        opponent_warrior_id: proposal.opponent_warrior_id,
-        stake_amount: proposal.stake_amount,
-        stake_token_address: proposal.stake_token_address,
-        status: "in_progress",
-        turns: [],
-        created_at: new Date().toISOString(),
+      // Determine game type
+      let gameType = proposal.game_type || "dino"
+
+      // Check localStorage as a fallback
+      if (!gameType && proposal.challenger_id && proposal.opponent_id) {
+        const storedGameType = localStorage.getItem(
+          `battle_game_type_${proposal.challenger_id}_${proposal.opponent_id}`,
+        )
+        if (storedGameType) {
+          gameType = storedGameType
+          console.log("Using game type from localStorage:", gameType)
+        }
       }
 
-      const { data: battle, error: battleError } = await supabase.from("battles").insert(battleData).select().single()
+      // Try to create battle record with game_type
+      try {
+        const { data: battle, error: battleError } = await supabase
+          .from("battles")
+          .insert({
+            proposal_id: proposalId,
+            challenger_id: proposal.challenger_id,
+            challenger_warrior_id: proposal.challenger_warrior_id,
+            opponent_id: proposal.opponent_id,
+            opponent_warrior_id: proposal.opponent_warrior_id,
+            stake_amount: proposal.stake_amount,
+            status: "in_progress",
+            turns: [],
+            created_at: new Date().toISOString(),
+            game_type: gameType, // Include the game type if available
+          })
+          .select()
+          .single()
 
-      if (battleError) throw battleError
+        if (battleError) {
+          // If error mentions game_type column, try without it
+          if (battleError.message && battleError.message.includes("game_type")) {
+            console.log("game_type column not found in battles table, trying without it")
+            const { data: retryBattle, error: retryError } = await supabase
+              .from("battles")
+              .insert({
+                proposal_id: proposalId,
+                challenger_id: proposal.challenger_id,
+                challenger_warrior_id: proposal.challenger_warrior_id,
+                opponent_id: proposal.opponent_id,
+                opponent_warrior_id: proposal.opponent_warrior_id,
+                stake_amount: proposal.stake_amount,
+                status: "in_progress",
+                turns: [],
+                created_at: new Date().toISOString(),
+                // game_type removed
+              })
+              .select()
+              .single()
 
-      // Log the token transaction
-      await logTokenTransaction({
-        battleId: battle.id,
-        fromUserId: session.user.id,
-        toUserId: "system", // Tokens are held by the system during the battle
-        tokenAddress: opponentWarrior.token_address,
-        tokenSymbol: opponentWarrior.token_symbol,
-        amount: proposal.stake_amount,
-        transactionType: "stake",
-      })
+            if (retryError) throw retryError
 
-      // Update warrior token balance in database
-      await supabase
-        .from("warriors")
-        .update({
-          token_balance: (opponentWarrior.token_balance || 0) - proposal.stake_amount,
-        })
-        .eq("id", opponentWarrior.id)
+            // Construct the complete battle object with related data
+            const completeBattle = {
+              ...retryBattle,
+              challenger: {
+                id: proposal.challenger_id,
+                user_metadata: { warrior_name: challengerWarrior.name },
+              },
+              challenger_warrior: challengerWarrior,
+              opponent: {
+                id: proposal.opponent_id,
+                user_metadata: { warrior_name: opponentWarrior.name },
+              },
+              opponent_warrior: opponentWarrior,
+              game_type: gameType, // Use the determined game type
+            }
 
-      // Construct the complete battle object with related data
-      const completeBattle = {
-        ...battle,
-        challenger: {
-          id: proposal.challenger_id,
-          user_metadata: { warrior_name: challengerWarrior.name },
-        },
-        challenger_warrior: challengerWarrior,
-        opponent: {
-          id: proposal.opponent_id,
-          user_metadata: { warrior_name: opponentWarrior.name },
-        },
-        opponent_warrior: opponentWarrior,
+            setActiveBattle(completeBattle)
+            setShowBattleGame(true)
+            console.log("Opening battle game modal:", completeBattle)
+          } else {
+            throw battleError
+          }
+        } else {
+          // Construct the complete battle object with related data
+          const completeBattle = {
+            ...battle,
+            challenger: {
+              id: proposal.challenger_id,
+              user_metadata: { warrior_name: challengerWarrior.name },
+            },
+            challenger_warrior: challengerWarrior,
+            opponent: {
+              id: proposal.opponent_id,
+              user_metadata: { warrior_name: opponentWarrior.name },
+            },
+            opponent_warrior: opponentWarrior,
+            game_type: gameType, // Use the determined game type
+          }
+
+          setActiveBattle(completeBattle)
+          setShowBattleGame(true)
+          console.log("Opening battle game modal:", completeBattle)
+        }
+      } catch (err) {
+        throw err
       }
-
-      setActiveBattle(completeBattle)
-      setShowBattleGame(true)
-      console.log("Opening battle game modal:", completeBattle)
 
       // Remove from proposals list
       setProposals(proposals.filter((p) => p.id !== proposalId))
     } catch (err) {
       console.error("Error accepting battle:", err)
-      setError("Failed to accept battle: " + (err instanceof Error ? err.message : String(err)))
+      setError(err instanceof Error ? err.message : "Failed to accept battle")
     }
   }
 
@@ -241,6 +249,46 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
     } catch (err) {
       console.error("Error declining battle:", err)
       setError("Failed to decline battle")
+    }
+  }
+
+  // Helper function to get game type display name
+  const getGameTypeName = (gameType: GameType | undefined) => {
+    if (!gameType) return "Dino Runner" // Default if undefined
+
+    switch (gameType) {
+      case "flappy":
+        return "Flappy Bird"
+      case "formula":
+        return "Formula Racer"
+      case "dino":
+      default:
+        return "Dino Runner"
+    }
+  }
+
+  // Helper function to render game icon
+  const renderGameIcon = (gameType: GameType | undefined) => {
+    switch (gameType) {
+      case "flappy":
+        return (
+          <div className="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
+            <Bird className="h-4 w-4 text-black" />
+          </div>
+        )
+      case "formula":
+        return (
+          <div className="w-6 h-6 bg-red-600 rounded-full flex items-center justify-center">
+            <Car className="h-4 w-4 text-black" />
+          </div>
+        )
+      case "dino":
+      default:
+        return (
+          <div className="w-6 h-6 bg-green-600 rounded-full flex items-center justify-center">
+            <div className="w-4 h-3 bg-green-800 rounded-sm"></div>
+          </div>
+        )
     }
   }
 
@@ -298,10 +346,18 @@ export default function BattleProposals({ userId, warriorId }: BattleProposalsPr
               </div>
 
               <div className="text-center">
-                <div className="bg-yellow-500 text-black font-bold px-3 py-1 pixel-font">
+                <div className="bg-yellow-500 text-black font-bold px-3 py-1 pixel-font flex items-center">
+                  <Coins className="h-3 w-3 mr-1" />
                   {proposal.stake_amount} {proposal.challenger_warrior?.token_symbol}
                 </div>
                 <div className="text-xs text-gray-400 pixel-font">STAKE</div>
+                <div className="text-xs text-gray-400 pixel-font mt-1">
+                  You'll stake {proposal.stake_amount} {proposal.opponent_warrior?.token_symbol}
+                </div>
+                <div className="flex items-center justify-center mt-2 text-xs text-green-400 pixel-font">
+                  {renderGameIcon(proposal.game_type)}
+                  <span className="ml-1">{getGameTypeName(proposal.game_type)}</span>
+                </div>
               </div>
 
               <div className="text-center">

@@ -102,6 +102,22 @@ export default function RPSBattleGame({ battle, onClose }: RPSBattleGameProps) {
       if (currentBattle.turns && currentBattle.turns.length > 0) {
         // Process existing turns
         processTurns(currentBattle.turns)
+      } else {
+        // If no turns yet, make the opponent go first instead of challenger
+        const lastTurn = currentBattle.turns?.length > 0 ? currentBattle.turns[currentBattle.turns.length - 1] : null
+
+        // If no turns yet, set the opponent to go first
+        if (!lastTurn) {
+          if (isChallenger) {
+            // If I'm the challenger, I wait
+            setWaitingForOpponent(true)
+            setChallengerMove(null)
+          } else {
+            // If I'm the opponent, I go first
+            setWaitingForOpponent(false)
+            setOpponentMove(null)
+          }
+        }
       }
     } catch (err) {
       console.error("Error fetching battle state:", err)

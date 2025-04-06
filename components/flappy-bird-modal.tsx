@@ -13,16 +13,16 @@ import {
 import { createClientComponentClient } from "@supabase/auth-helpers-nextjs"
 import { Loader2, AlertCircle, Trophy } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import DinoGame from "./dino-game"
+import FlappyBird from "./flappy-bird"
 import ElementalIcon from "./elemental-icon"
 import type { ElementType } from "@/components/elemental-warrior-selector"
 
-interface DinoBattleModalProps {
+interface FlappyBirdModalProps {
   battle: any
   onClose: () => void
 }
 
-export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProps) {
+export default function FlappyBirdModal({ battle, onClose }: FlappyBirdModalProps) {
   const supabase = createClientComponentClient()
   const [isChallenger, setIsChallenger] = useState(false)
   const [loading, setLoading] = useState(false)
@@ -98,10 +98,11 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
       if (currentBattle.turns && currentBattle.turns.length > 0) {
         processTurns(currentBattle.turns, userIsChallenger)
       } else {
-        setCurrentTurn("challenger")
-        setMyTurn(userIsChallenger)
-        setGamePhase(userIsChallenger ? "playing" : "waiting")
-        setWaitingForOpponent(!userIsChallenger)
+        // Opponent starts first
+        setCurrentTurn("opponent")
+        setMyTurn(!userIsChallenger)
+        setGamePhase(userIsChallenger ? "waiting" : "playing")
+        setWaitingForOpponent(userIsChallenger)
       }
     } catch (err) {
       console.error("Error fetching battle state:", err)
@@ -210,7 +211,7 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
 
   const processTurns = (turns: any[], isUserChallenger: boolean) => {
     if (!turns || turns.length === 0) {
-      // Change this section to make the opponent start first instead of the challenger
+      // Opponent starts first
       setCurrentTurn("opponent")
       setMyTurn(!isUserChallenger)
       setGamePhase(isUserChallenger ? "waiting" : "playing")
@@ -220,7 +221,6 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
 
     console.log("Processing turns:", turns)
 
-    // Rest of the function remains the same...
     // Find turns for each player
     const challengerTurn = turns.find((turn) => turn.player === "challenger")
     const opponentTurn = turns.find((turn) => turn.player === "opponent")
@@ -269,7 +269,7 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
         setWinner("draw")
       }
     } else if (!opponentPlayed) {
-      // Opponent needs to play first (changed order)
+      // Opponent needs to play first
       setCurrentTurn("opponent")
       setMyTurn(!isUserChallenger)
       setGamePhase(!isUserChallenger ? "playing" : "waiting")
@@ -304,8 +304,8 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
     <Dialog open={true} onOpenChange={onClose}>
       <DialogContent className="bg-gray-900 text-white border-yellow-500 max-w-2xl">
         <DialogHeader>
-          <DialogTitle className="text-yellow-400 pixel-font">ELEMENTAL RUNNER BATTLE</DialogTitle>
-          <DialogDescription>Jump over obstacles and get the highest score to win!</DialogDescription>
+          <DialogTitle className="text-yellow-400 pixel-font">FLAPPY ELEMENTAL BATTLE</DialogTitle>
+          <DialogDescription>Fly through pipes and get the highest score to win!</DialogDescription>
         </DialogHeader>
 
         <div className="py-4 space-y-6">
@@ -355,8 +355,8 @@ export default function DinoBattleModal({ battle, onClose }: DinoBattleModalProp
           {gamePhase === "playing" && myTurn && (
             <>
               <div className="text-center text-green-400 pixel-font mb-2">YOUR TURN!</div>
-              <DinoGame onGameOver={handleGameOver} autoStart={false} elementType={getMyElementType()} />
-              <div className="text-center text-xs text-gray-400 pixel-font">PRESS SPACE OR UP ARROW TO JUMP</div>
+              <FlappyBird onGameOver={handleGameOver} autoStart={false} elementType={getMyElementType()} />
+              <div className="text-center text-xs text-gray-400 pixel-font">PRESS SPACE OR TAP TO FLAP</div>
             </>
           )}
 

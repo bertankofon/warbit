@@ -8,11 +8,8 @@ import WarriorCard from "@/components/warrior-card"
 import BattleModal from "@/components/battle-modal"
 import BattleProposals from "@/components/battle-proposals"
 import { checkDatabaseSetup } from "@/lib/database-setup"
-import { getAllTokens } from "@/lib/metal-api"
+import { getAllTokens, getToken } from "@/lib/metal-api"
 import ActiveBattles from "@/components/active-battles"
-
-// Import the new migration functions
-import { setupTokenTransactionsTable, addTokenAddressColumns } from "@/lib/db-migrations-token"
 
 export default function Dashboard() {
   const router = useRouter()
@@ -46,10 +43,6 @@ export default function Dashboard() {
 
         // Check if we can access the warriors table
         const dbStatus = await checkDatabaseSetup()
-
-        // Run token-related migrations
-        await setupTokenTransactionsTable()
-        await addTokenAddressColumns()
 
         if (!dbStatus.success) {
           setIsPreviewMode(dbStatus.isPreviewMode)
@@ -133,6 +126,40 @@ export default function Dashboard() {
           if (warriorData) {
             console.log("Warrior data found:", warriorData)
             setMyWarrior(warriorData)
+
+            // If we have a warrior with a token address, fetch the token data from the blockchain
+            if (warriorData && warriorData.token_address) {
+              try {
+                console.log("Fetching token data from blockchain for:", warriorData.token_address)
+                const tokenData = await getToken(warriorData.token_address)
+                console.log("Token data from blockchain:", tokenData)
+
+                // Update the warrior with the blockchain data
+                setMyWarrior({
+                  ...warriorData,
+                  token_balance: tokenData.remainingAppSupply,
+                  // Add other token data as needed
+                })
+
+                // If there are holders, find the user's balance
+                if (tokenData.holders && tokenData.holders.length > 0) {
+                  const userHolder = tokenData.holders.find(
+                    (holder) => holder.address.toLowerCase() === user?.user_metadata?.wallet_address?.toLowerCase(),
+                  )
+
+                  if (userHolder) {
+                    console.log("User holder found:", userHolder)
+                    setMyWarrior((prev) => ({
+                      ...prev,
+                      token_balance: userHolder.balance,
+                      token_value: userHolder.value.toFixed(2),
+                    }))
+                  }
+                }
+              } catch (tokenError) {
+                console.error("Error fetching token data from blockchain:", tokenError)
+              }
+            }
           }
 
           // Fetch all warriors from the database
@@ -160,7 +187,7 @@ export default function Dashboard() {
     }
 
     checkUser()
-  }, [router, supabase])
+  }, [router, supabase, user?.user_metadata?.wallet_address])
 
   // Function to fetch all warriors
   const fetchAllWarriors = async (currentUserId: string) => {
@@ -470,7 +497,46 @@ export default function Dashboard() {
 
                     <div className="pixel-border bg-gray-900 flex-1">
                       <div className="bg-black p-4 border-2 border-green-500">
-                        <h3 className="text-lg font-bold mb-4 text-green-400 pixel-font">TOKEN INFO</h3>
+                        <div className="flex justify-between items-center mb-4">
+                          <h3 className="text-lg font-bold text-green-400 pixel-font">TOKEN INFO</h3>
+                          <button
+                            className="pixel-button pixel-button-green text-xs"
+                            onClick={async () => {
+                              try {
+                                const tokenData = await getToken(myWarrior.token_address)
+                                console.log("Refreshed token data:", tokenData)
+
+                                // Update the warrior with the blockchain data
+                                setMyWarrior((prev) => ({
+                                  ...prev,
+                                  token_balance: tokenData.remainingAppSupply,
+                                }))
+
+                                // If there are holders, find the user's balance
+                                if (tokenData.holders && tokenData.holders.length > 0) {
+                                  const userHolder = tokenData.holders.find(
+                                    (holder) =>
+                                      holder.address.toLowerCase() ===
+                                      user?.user_metadata?.wallet_address?.toLowerCase(),
+                                  )
+
+                                  if (userHolder) {
+                                    setMyWarrior((prev) => ({
+                                      ...prev,
+                                      token_balance: userHolder.balance,
+                                      token_value: userHolder.value.toFixed(2),
+                                    }))
+                                  }
+                                }
+                              } catch (error) {
+                                console.error("Error refreshing token data:", error)
+                              }
+                            }}
+                          >
+                            <Loader2 className="h-3 w-3 mr-1 inline-block" />
+                            REFRESH
+                          </button>
+                        </div>
                         <div className="grid grid-cols-2 gap-2 text-xs">
                           <div className="text-gray-400 pixel-font">SYMBOL:</div>
                           <div className="text-white pixel-font">{myWarrior.token_symbol}</div>
